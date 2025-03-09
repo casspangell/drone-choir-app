@@ -254,22 +254,30 @@ const DroneChoirPerformer = () => {
   
   // Start the performance
   const startPerformance = () => {
+    console.log("Starting performance, queue length:", audioQueueRef.current.length);
+    
     initAudio();
     setIsPlaying(true);
     isPlayingRef.current = true;
     
     // Generate a note if queue is empty
     if (audioQueueRef.current.length === 0) {
+      console.log("Queue is empty, generating initial note");
       const initialNote = generateNewNote();
-      updateAudioQueue([initialNote]);
+      
+      // Ensure complete queue reset before adding the new note
+      audioQueueRef.current = [initialNote];
+      setAudioQueue([initialNote]);
       
       // Give a moment for state to update
       setTimeout(() => {
         if (isPlayingRef.current) {
+          console.log("Starting playback with newly generated note");
           playNextInQueue();
         }
       }, 50);
     } else {
+      console.log("Starting playback with existing queue:", audioQueueRef.current.length, "notes");
       // Start playing if there are notes in the queue
       playNextInQueue();
     }
@@ -445,11 +453,6 @@ const DroneChoirPerformer = () => {
     updateAudioQueue([...audioQueueRef.current, newNote]);
   };
   
-  // Clear the queue
-  const clearQueue = () => {
-    updateAudioQueue([]);
-  };
-  
   // Render voice type options
   const renderVoiceOptions = () => {
     const options = [
@@ -533,9 +536,6 @@ const DroneChoirPerformer = () => {
         <div className="queue-controls">
           <button className="queue-button add" onClick={addNoteToQueue}>
             Add Random Note
-          </button>
-          <button className="queue-button clear" onClick={clearQueue}>
-            Clear Queue
           </button>
         </div>
       </div>
