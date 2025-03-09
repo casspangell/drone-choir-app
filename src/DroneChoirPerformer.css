@@ -1,7 +1,19 @@
+.drone-choir-multi {
+  font-family: Arial, sans-serif;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 20px;
+}
+
+.voice-modules-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 20px;
+}
+
 .drone-choir-container {
   font-family: Arial, sans-serif;
-  max-width: 800px;
-  margin: 0 auto;
+  max-width: 100%;
   padding: 20px;
   background-color: #2d3748;
   color: white;
@@ -267,21 +279,13 @@
   transition: height 0.1s ease;
 }
 
-.instructions {
-  background-color: #4a5568;
-  padding: 15px;
-  border-radius: 8px;
-}
-
-.instruction-list {
-  padding-left: 20px;
-}
-
-.instruction-list li {
-  margin-bottom: 8px;
-}
-
 /* For responsive design */
+@media (max-width: 1024px) {
+  .voice-modules-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 @media (max-width: 600px) {
   .drone-choir-container {
     padding: 10px;

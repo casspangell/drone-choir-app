@@ -1,0 +1,12 @@
+.voice-title {
+  font-size: 1.4rem;
+  font-weight: bold;
+  margin-bottom: 15px;
+  text-align: center;
+  color: white;
+}
+
+.voice-type-label {
+  font-weight: bold;
+  font-size: 1.1rem;
+}
