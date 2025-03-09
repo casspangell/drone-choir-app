@@ -36,28 +36,36 @@ const VoiceModule = forwardRef(({ voiceType, voiceRange, onPlayStateChange, shar
   }, [sharedAudioContext, audioContext]);
   
   // Expose methods to parent component via ref
-  useImperativeHandle(ref, () => ({
-    startPerformance: (providedContext = null) => {
-      if (providedContext && !audioContext) {
-        setAudioContext(providedContext);
-        const analyser = providedContext.createAnalyser();
-        analyser.fftSize = 2048;
-        analyserRef.current = analyser;
-        
-        // Small delay to ensure context is set
-        setTimeout(() => {
+    useImperativeHandle(ref, () => ({
+      startPerformance: (providedContext = null) => {
+        if (providedContext && !audioContext) {
+          setAudioContext(providedContext);
+          const analyser = providedContext.createAnalyser();
+          analyser.fftSize = 2048;
+          analyserRef.current = analyser;
+          
+          // Small delay to ensure context is set
+          setTimeout(() => {
+            startPerformance();
+          }, 50);
+        } else {
           startPerformance();
-        }, 50);
-      } else {
-        startPerformance();
+        }
+      },
+      stopPerformance: () => {
+        stopPerformance();
+      },
+      clearQueue: () => {
+        updateAudioQueue([]);
+        console.log(`${voiceType} queue cleared`);
+      },
+      addSpecificNote: (note) => {
+        updateAudioQueue([note]);
+        console.log(`${voiceType} added specific note: ${note.note} (${note.frequency.toFixed(2)} Hz)`);
+      },
+      get isPlaying() {
+        return isPlayingRef.current;
       }
-    },
-    stopPerformance: () => {
-      stopPerformance();
-    },
-    get isPlaying() {
-      return isPlayingRef.current;
-    }
   }));
   
   // Initialize audio context

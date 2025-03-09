@@ -280,7 +280,9 @@
 .master-controls {
   display: flex;
   justify-content: center;
-  margin-bottom: 20px;
+  gap: 25px; /* Increased gap between buttons */
+  margin-bottom: 25px;
+  padding: 15px;
 }
 
 .master-control-button {
@@ -292,6 +294,7 @@
   cursor: pointer;
   transition: background-color 0.2s;
   box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  min-width: 220px; /* Add a minimum width to make buttons more uniform */
 }
 
 .master-control-button.start {
@@ -310,6 +313,15 @@
 
 .master-control-button.stop:hover {
   background-color: #e53e3e;
+}
+
+.master-control-button.initial {
+  background-color: #4299e1;
+  color: white;
+}
+
+.master-control-button.initial:hover {
+  background-color: #3182ce;
 }
 
 /* For responsive design - adjusting to different screen sizes */

@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import './DroneChoirPerformer.css';
 import VoiceModule from './VoiceModule';
+import { startUnison, startAll, stopAll } from './performance';
 
 const DroneChoirPerformer = () => {
   // State for controlling all modules
@@ -28,50 +29,35 @@ const DroneChoirPerformer = () => {
   
   // Define voice ranges for the different voice types
   const voiceRanges = {
-    soprano: { min: 261.63, max: 880.00, label: 'Soprano (C4-A5)' },
-    alto: { min: 174.61, max: 587.33, label: 'Alto (F3-D5)' },
-    tenor: { min: 130.81, max: 440.00, label: 'Tenor (C3-A4)' },
-    bass: { min: 87.31, max: 329.63, label: 'Bass (F2-E4)' }
-  };
-  
-  // Function to start all modules
-  const startAllModules = () => {
-    // Initialize the shared audio context first
-    const ctx = initSharedAudioContext();
-    
-    // Then start all modules with the shared context
-    Object.values(voiceModuleRefs).forEach(ref => {
-      if (ref.current && ref.current.startPerformance) {
-        ref.current.startPerformance(ctx);
-      }
-    });
-    
-    setIsAllPlaying(true);
-  };
-  
-  // Function to stop all modules
-  const stopAllModules = () => {
-    Object.values(voiceModuleRefs).forEach(ref => {
-      if (ref.current && ref.current.stopPerformance) {
-        ref.current.stopPerformance();
-      }
-    });
-    
-    setIsAllPlaying(false);
+    soprano: { min: 196.00, max: 523.25, label: 'Soprano (G3-C5)' },
+    alto: { min: 164.81, max: 392.00, label: 'Alto (E3-G4)' },
+    tenor: { min: 130.81, max: 349.23, label: 'Tenor (C3-F4)' },
+    bass: { min: 98.00, max: 261.63, label: 'Bass (G2-C4)' }
   };
   
   // Handle the master control button click
   const handleMasterControlClick = () => {
     if (isAllPlaying) {
-      stopAllModules();
+      stopAll(voiceModuleRefs, setIsAllPlaying);
     } else {
-      startAllModules();
+      startAll(voiceModuleRefs, initSharedAudioContext, setIsAllPlaying);
     }
+  };
+  
+  // Handle unison start button click
+  const handleUnisonStart = () => {
+    startUnison(voiceRanges, voiceModuleRefs, initSharedAudioContext, setIsAllPlaying);
   };
 
   return (
     <div className="drone-choir-multi">
       <div className="master-controls">
+        <button
+          onClick={handleUnisonStart}
+          className="master-control-button initial"
+        >
+          Start All on Same Pitch (10s)
+        </button>
         <button
           onClick={handleMasterControlClick}
           className={`master-control-button ${isAllPlaying ? 'stop' : 'start'}`}
