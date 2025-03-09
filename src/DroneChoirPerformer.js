@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import './DroneChoirPerformer.css'; // We'll create this CSS file separately
+import './DroneChoirPerformer.css';
 
 const DroneChoirPerformer = () => {
   // State variables
@@ -10,6 +10,8 @@ const DroneChoirPerformer = () => {
   const [countdownTime, setCountdownTime] = useState(0);
   const [audioContext, setAudioContext] = useState(null);
   const [visualData, setVisualData] = useState({ frequency: 0, amplitude: 0 });
+  const [autoGenerate, setAutoGenerate] = useState(false);
+  const [audioQueue, setAudioQueue] = useState([]);
   
   // Refs
   const audioElementRef = useRef(null);
@@ -18,14 +20,15 @@ const DroneChoirPerformer = () => {
   const analyserRef = useRef(null);
   const canvasRef = useRef(null);
   const animationFrameRef = useRef(null);
+  const autoGenIntervalRef = useRef(null);
   
-  // Example note sequence (would come from server in real app)
-  const noteSequence = [
-    { frequency: 110, duration: 10, note: 'A2' },
-    { frequency: 123.47, duration: 10, note: 'B2' },
-    { frequency: 130.81, duration: 10, note: 'C3' },
-    { frequency: 146.83, duration: 10, note: 'D3' },
-  ];
+  // Voice ranges for different voice types
+  const voiceRanges = {
+    soprano: { min: 261.63, max: 1046.50 }, // C4 to C6
+    alto: { min: 174.61, max: 698.46 },     // F3 to F5
+    tenor: { min: 130.81, max: 523.25 },    // C3 to C5
+    bass: { min: 82.41, max: 329.63 }       // E2 to E4
+  };
   
   // Initialize audio context
   const initAudio = () => {
@@ -43,16 +46,127 @@ const DroneChoirPerformer = () => {
     return { ctx: audioContext, analyser: analyserRef.current };
   };
   
-  // Start the performance
-  const startPerformance = () => {
+  // Generate a random frequency within the selected voice range
+  const generateRandomFrequency = () => {
+    const range = voiceRanges[voiceType];
+    return Math.random() * (range.max - range.min) + range.min;
+  };
+  
+  // Generate a random duration between 3 and 8 seconds
+  const generateRandomDuration = () => {
+    return Math.random() * 5 + 3; // 3 to 8 seconds
+  };
+  
+  // Generate a note name from a frequency (simplified)
+  const getNoteName = (frequency) => {
+    // This is a simplified mapping that doesn't account for exact frequencies
+    const noteNames = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+    const A4 = 440.0;
+    const A4Index = 9; // Index of A in noteNames
+    
+    // Calculate how many half steps away from A4
+    const halfStepsFromA4 = Math.round(12 * Math.log2(frequency / A4));
+    
+    // Calculate octave and note
+    const octave = Math.floor((halfStepsFromA4 + A4Index) / 12) + 4;
+    const noteIndex = (((halfStepsFromA4 + A4Index) % 12) + 12) % 12;
+    
+    return noteNames[noteIndex] + octave;
+  };
+  
+  // Generate a new note
+  const generateNewNote = () => {
+    const frequency = generateRandomFrequency();
+    const duration = generateRandomDuration();
+    const note = getNoteName(frequency);
+    
+    return {
+      frequency,
+      duration,
+      note
+    };
+  };
+  
+  // Auto-generate and add new notes to the queue
+  const startAutoGeneration = () => {
+    // Clear any existing interval
+    if (autoGenIntervalRef.current) {
+      clearInterval(autoGenIntervalRef.current);
+    }
+    
+    // Generate initial note
+    const initialNote = generateNewNote();
+    setAudioQueue(prev => [...prev, initialNote]);
+    
+    // Start the interval for generating new notes
+    autoGenIntervalRef.current = setInterval(() => {
+      const newNote = generateNewNote();
+      
+      setAudioQueue(prevQueue => {
+        const updatedQueue = [...prevQueue, newNote];
+        
+        // If we're playing and this is the first note added, start playing
+        if (isPlaying && prevQueue.length === 0) {
+          playNextInQueue();
+        }
+        
+        return updatedQueue;
+      });
+    }, 5000); // Generate a new note every 5 seconds
+    
+    setAutoGenerate(true);
+  };
+  
+  // Stop auto generation
+  const stopAutoGeneration = () => {
+    if (autoGenIntervalRef.current) {
+      clearInterval(autoGenIntervalRef.current);
+      autoGenIntervalRef.current = null;
+    }
+    
+    setAutoGenerate(false);
+  };
+  
+  // Play the next note in the queue
+  const playNextInQueue = () => {
+    if (audioQueue.length === 0) {
+      setCurrentNote(null);
+      setNextNote(null);
+      return;
+    }
+    
+    // Get the next note from the queue
+    const nextNoteToPlay = audioQueue[0];
+    const newQueue = audioQueue.slice(1);
+    setAudioQueue(newQueue);
+    
+    // Set up next note preview
+    setCurrentNote(nextNoteToPlay);
+    setNextNote(newQueue.length > 0 ? newQueue[0] : null);
+    
+    // Play the note
+    playNote(nextNoteToPlay);
+    
+    // Start countdown
+    startCountdown(nextNoteToPlay.duration);
+  };
+  
+  // Play a specific note
+  const playNote = (noteData) => {
     const { ctx, analyser } = initAudio();
     
-    // Create oscillator
+    // Stop any currently playing note
+    if (oscillatorRef.current) {
+      oscillatorRef.current.stop();
+      oscillatorRef.current = null;
+    }
+    
+    // Create new oscillator
     const oscillator = ctx.createOscillator();
     const gainNode = ctx.createGain();
     
     oscillator.type = 'sine';
-    oscillator.frequency.value = noteSequence[0].frequency;
+    oscillator.frequency.value = noteData.frequency;
     
     // Connect nodes
     oscillator.connect(gainNode);
@@ -63,6 +177,10 @@ const DroneChoirPerformer = () => {
     gainNode.gain.setValueAtTime(0, ctx.currentTime);
     gainNode.gain.linearRampToValueAtTime(0.5, ctx.currentTime + 0.5);
     
+    // Schedule fade-out
+    gainNode.gain.linearRampToValueAtTime(0.5, ctx.currentTime + noteData.duration - 0.5);
+    gainNode.gain.linearRampToValueAtTime(0, ctx.currentTime + noteData.duration);
+    
     // Store references
     oscillatorRef.current = oscillator;
     gainNodeRef.current = gainNode;
@@ -70,59 +188,40 @@ const DroneChoirPerformer = () => {
     // Start oscillator
     oscillator.start();
     
+    // Schedule the end of the note
+    setTimeout(() => {
+      if (oscillatorRef.current === oscillator) {
+        oscillatorRef.current = null;
+        // Play the next note if auto-playing is on
+        if (isPlaying) {
+          playNextInQueue();
+        }
+      }
+    }, noteData.duration * 1000);
+    
     // Set up visualization
     setupVisualization();
-    
-    // Update state
-    setIsPlaying(true);
-    setCurrentNote(noteSequence[0]);
-    setNextNote(noteSequence[1]);
-    
-    // Queue the next notes
-    queueNextNotes(1);
   };
   
-  // Queue up the next notes in sequence
-  const queueNextNotes = (startIndex) => {
-    if (startIndex >= noteSequence.length) {
-      // End of sequence
-      setTimeout(() => {
-        stopPerformance();
-      }, noteSequence[noteSequence.length - 1].duration * 1000);
-      return;
+  // Start the performance
+  const startPerformance = () => {
+    initAudio();
+    setIsPlaying(true);
+    
+    // Start playing if there are notes in the queue
+    if (audioQueue.length > 0) {
+      playNextInQueue();
     }
     
-    const currentTime = audioContext.currentTime;
-    let accumulatedTime = 0;
-    
-    for (let i = startIndex; i < noteSequence.length; i++) {
-      const note = noteSequence[i];
-      const previousNote = noteSequence[i - 1];
-      const timeOffset = accumulatedTime + previousNote.duration;
-      
-      // Schedule the next note change
-      setTimeout(() => {
-        if (oscillatorRef.current) {
-          oscillatorRef.current.frequency.setValueAtTime(
-            note.frequency, 
-            audioContext.currentTime
-          );
-          
-          setCurrentNote(note);
-          setNextNote(i < noteSequence.length - 1 ? noteSequence[i + 1] : null);
-          
-          // Start countdown for next note
-          startCountdown(note.duration);
-        }
-      }, timeOffset * 1000);
-      
-      accumulatedTime += previousNote.duration;
+    // Start auto-generation if it's enabled
+    if (autoGenerate && !autoGenIntervalRef.current) {
+      startAutoGeneration();
     }
   };
   
   // Handle countdown timer
   const startCountdown = (seconds) => {
-    setCountdownTime(seconds);
+    setCountdownTime(Math.round(seconds));
     
     const interval = setInterval(() => {
       setCountdownTime(prevTime => {
@@ -158,12 +257,10 @@ const DroneChoirPerformer = () => {
           cancelAnimationFrame(animationFrameRef.current);
           animationFrameRef.current = null;
         }
-        
-        setIsPlaying(false);
-        setCurrentNote(null);
-        setNextNote(null);
       }, 500);
     }
+    
+    setIsPlaying(false);
   };
   
   // Set up waveform visualization
@@ -260,6 +357,9 @@ const DroneChoirPerformer = () => {
       if (animationFrameRef.current) {
         cancelAnimationFrame(animationFrameRef.current);
       }
+      if (autoGenIntervalRef.current) {
+        clearInterval(autoGenIntervalRef.current);
+      }
     };
   }, []);
   
@@ -268,13 +368,33 @@ const DroneChoirPerformer = () => {
     setVoiceType(e.target.value);
   };
   
+  // Handle auto-generate toggle
+  const handleAutoGenerateToggle = () => {
+    if (autoGenerate) {
+      stopAutoGeneration();
+    } else {
+      startAutoGeneration();
+    }
+  };
+  
+  // Add a single note to the queue
+  const addNoteToQueue = () => {
+    const newNote = generateNewNote();
+    setAudioQueue(prev => [...prev, newNote]);
+  };
+  
+  // Clear the queue
+  const clearQueue = () => {
+    setAudioQueue([]);
+  };
+  
   // Render voice type options
   const renderVoiceOptions = () => {
     const options = [
-      { value: 'soprano', label: 'Soprano (C4-C6)', baseFreq: 523.25 },
-      { value: 'alto', label: 'Alto (F3-F5)', baseFreq: 349.23 },
-      { value: 'tenor', label: 'Tenor (C3-C5)', baseFreq: 261.63 },
-      { value: 'bass', label: 'Bass (E2-E4)', baseFreq: 130.81 }
+      { value: 'soprano', label: 'Soprano (C4-C6)' },
+      { value: 'alto', label: 'Alto (F3-F5)' },
+      { value: 'tenor', label: 'Tenor (C3-C5)' },
+      { value: 'bass', label: 'Bass (E2-E4)' }
     ];
     
     return options.map(option => (
@@ -323,7 +443,6 @@ const DroneChoirPerformer = () => {
             value={voiceType}
             onChange={handleVoiceTypeChange}
             className="voice-select"
-            disabled={isPlaying}
           >
             {renderVoiceOptions()}
           </select>
@@ -335,6 +454,26 @@ const DroneChoirPerformer = () => {
             className={`control-button ${isPlaying ? 'stop' : 'start'}`}
           >
             {isPlaying ? 'Stop Performance' : 'Start Performance'}
+          </button>
+        </div>
+        
+        <div className="auto-generate">
+          <label>
+            <input 
+              type="checkbox" 
+              checked={autoGenerate} 
+              onChange={handleAutoGenerateToggle}
+            />
+            Auto-generate notes every 5 seconds
+          </label>
+        </div>
+        
+        <div className="queue-controls">
+          <button className="queue-button add" onClick={addNoteToQueue}>
+            Add Random Note
+          </button>
+          <button className="queue-button clear" onClick={clearQueue}>
+            Clear Queue
           </button>
         </div>
       </div>
@@ -374,6 +513,29 @@ const DroneChoirPerformer = () => {
           </div>
         </div>
       )}
+      
+      {/* Queue display */}
+      <div className="queue-display">
+        <h2 className="section-title">Note Queue ({audioQueue.length})</h2>
+        <div className="queue-items">
+          {audioQueue.length === 0 ? (
+            <div className="empty-queue">Queue is empty</div>
+          ) : (
+            audioQueue.slice(0, 5).map((queueItem, index) => (
+              <div key={index} className="queue-item">
+                <span className="queue-note">{queueItem.note}</span>
+                <span className="queue-freq">{queueItem.frequency.toFixed(1)} Hz</span>
+                <span className="queue-duration">{queueItem.duration.toFixed(1)}s</span>
+              </div>
+            ))
+          )}
+          {audioQueue.length > 5 && (
+            <div className="queue-more">
+              +{audioQueue.length - 5} more notes in queue
+            </div>
+          )}
+        </div>
+      </div>
       
       {/* Visualization area */}
       <div className="visualization-container">
