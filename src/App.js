@@ -12,7 +12,7 @@ function App() {
         <DroneChoirPerformer />
       </main>
       <footer>
-        <p>Transmission - 2025</p>
+        <p>2025</p>
       </footer>
     </div>
   );
