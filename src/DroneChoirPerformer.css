@@ -1,0 +1,192 @@
+.drone-choir-container {
+  font-family: Arial, sans-serif;
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 20px;
+  background-color: #2d3748;
+  color: white;
+  border-radius: 8px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.app-title {
+  font-size: 24px;
+  font-weight: bold;
+  margin-bottom: 20px;
+  text-align: center;
+}
+
+.control-panel {
+  background-color: #4a5568;
+  padding: 15px;
+  border-radius: 8px;
+  margin-bottom: 20px;
+}
+
+.voice-selector {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 15px;
+}
+
+.voice-select {
+  background-color: #2d3748;
+  color: white;
+  padding: 8px;
+  border-radius: 4px;
+  border: 1px solid #4a5568;
+}
+
+.control-buttons {
+  display: flex;
+  gap: 10px;
+}
+
+.control-button {
+  padding: 10px 15px;
+  border: none;
+  border-radius: 4px;
+  font-weight: bold;
+  cursor: pointer;
+  width: 100%;
+}
+
+.control-button.start {
+  background-color: #48bb78;
+  color: white;
+}
+
+.control-button.start:hover {
+  background-color: #38a169;
+}
+
+.control-button.stop {
+  background-color: #f56565;
+  color: white;
+}
+
+.control-button.stop:hover {
+  background-color: #e53e3e;
+}
+
+.note-display {
+  background-color: #4a5568;
+  padding: 15px;
+  border-radius: 8px;
+  margin-bottom: 20px;
+}
+
+.section-title {
+  font-size: 18px;
+  font-weight: 600;
+  margin-bottom: 10px;
+}
+
+.note-info {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.note-name {
+  font-size: 32px;
+  font-weight: bold;
+  color: #90cdf4;
+}
+
+.note-name.next {
+  color: #d6bcfa;
+}
+
+.note-frequency {
+  color: #cbd5e0;
+  margin-top: 5px;
+}
+
+.countdown {
+  text-align: right;
+}
+
+.countdown-time {
+  font-size: 24px;
+  font-weight: bold;
+}
+
+.countdown-label {
+  color: #cbd5e0;
+  font-size: 14px;
+}
+
+.no-note {
+  color: #a0aec0;
+  font-style: italic;
+}
+
+.visualization-container {
+  background-color: #1a202c;
+  height: 160px;
+  border-radius: 8px;
+  margin-bottom: 20px;
+  padding: 10px;
+  display: flex;
+}
+
+.waveform-container {
+  flex: 1;
+  height: 100%;
+}
+
+.waveform-canvas {
+  width: 100%;
+  height: 100%;
+}
+
+.pitch-indicator {
+  width: 48px;
+  height: 100%;
+  background-color: #4a5568;
+  border-radius: 4px;
+  margin-left: 10px;
+  overflow: hidden;
+  position: relative;
+}
+
+.pitch-indicator-bar {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  transition: height 0.1s ease;
+}
+
+.instructions {
+  background-color: #4a5568;
+  padding: 15px;
+  border-radius: 8px;
+}
+
+.instruction-list {
+  padding-left: 20px;
+}
+
+.instruction-list li {
+  margin-bottom: 8px;
+}
+
+/* For responsive design */
+@media (max-width: 600px) {
+  .drone-choir-container {
+    padding: 10px;
+  }
+  
+  .note-info {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  
+  .countdown {
+    text-align: left;
+    margin-top: 10px;
+  }
+}
