@@ -1,3 +1,5 @@
+import { VOICE_RANGES } from './voiceTypes';
+
 class FrequencyStreamClient {
     constructor(serverUrl = 'ws://localhost:8080') {
         this.serverUrl = serverUrl;
@@ -8,6 +10,13 @@ class FrequencyStreamClient {
         this.isConnected = false;
         this.connectionAttempts = 0;
         this.maxConnectionAttempts = 5;
+
+        this.frequencies = Object.values(VOICE_RANGES).map(voice => ({
+          id: voice.id,
+          hertz: voice.hertz,
+          voiceType: voice.label.split(' ')[0].toLowerCase(),
+          note: voice.note
+        }));
         
         // Bind event handlers
         this.handleOpen = this.handleOpen.bind(this);

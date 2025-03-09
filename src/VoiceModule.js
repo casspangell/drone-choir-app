@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useRef, forwardRef, useImperativeHandle } from 'react';
+import { VOICE_RANGES, generateRandomNote, getNoteName } from './voiceTypes';
 import './VoiceModule.css';
 import FrequencyStreamClient from './FrequencyStreamClient';
-import { VOICE_RANGES, generateRandomNote } from './voiceTypes';
 
-const VoiceModule = forwardRef(({ voiceType, voiceRange, onPlayStateChange, sharedAudioContext }, ref) => {
+const VoiceModule = forwardRef(({ voiceType, onPlayStateChange, sharedAudioContext }, ref) => {
   // State variables
   const [currentNote, setCurrentNote] = useState(null);
   const [nextNote, setNextNote] = useState(null);
@@ -14,6 +14,7 @@ const VoiceModule = forwardRef(({ voiceType, voiceRange, onPlayStateChange, shar
   const [autoGenerate, setAutoGenerate] = useState(false);
   const [audioQueue, setAudioQueue] = useState([]);
   const [streamClient, setStreamClient] = useState(null);
+  const voiceRange = VOICE_RANGES[voiceType];
   
   // Refs
   const audioQueueRef = useRef([]);
@@ -569,7 +570,7 @@ const VoiceModule = forwardRef(({ voiceType, voiceRange, onPlayStateChange, shar
   
   // Add a single note to the queue
   const addNoteToQueue = () => {
-    const newNote = generateNewNote();
+    const newNote = generateRandomNote(voiceRange);
     updateAudioQueue([...audioQueueRef.current, newNote]);
   };
   

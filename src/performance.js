@@ -1,26 +1,12 @@
-// performance.js - Contains all performance-related functionality for the Drone Choir system
+// Contains all performance-related functionality for the Drone Choir system
 
-// Helper function to get note name from frequency
-const getNoteName = (frequency) => {
-  const noteNames = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
-  const A4 = 440.0;
-  const A4Index = 9; // Index of A in noteNames
-  
-  // Calculate how many half steps away from A4
-  const halfStepsFromA4 = Math.round(12 * Math.log2(frequency / A4));
-  
-  // Calculate octave and note
-  const octave = Math.floor((halfStepsFromA4 + A4Index) / 12) + 4;
-  const noteIndex = (((halfStepsFromA4 + A4Index) % 12) + 12) % 12;
-  
-  return noteNames[noteIndex] + octave;
-};
+import { VOICE_RANGES, generateRandomNote, getNoteName } from './voiceTypes';
 
 // Start all voice modules on the same pitch for 10 seconds
 const startUnison = (voiceRanges, voiceModuleRefs, initSharedAudioContext, setIsAllPlaying) => {
 
   const commonPitch = 220; // A3
-  const noteName = "A4";
+  const noteName = getNoteName(commonPitch);
   
   console.log(`Starting all voices on fixed pitch: ${noteName} (${commonPitch.toFixed(2)} Hz)`);
   
@@ -78,24 +64,9 @@ const stopAll = (voiceModuleRefs, setIsAllPlaying) => {
   setIsAllPlaying(false);
 };
 
-// Generate a random note within a specific voice range
-const generateRandomNote = (voiceRange, minDuration = 3, maxDuration = 8) => {
-  const frequency = Math.random() * (voiceRange.max - voiceRange.min) + voiceRange.min;
-  const duration = Math.random() * (maxDuration - minDuration) + minDuration;
-  const note = getNoteName(frequency);
-  
-  return {
-    frequency,
-    duration,
-    note
-  };
-};
-
 // Export all functions
 export {
   startUnison,
   startAll,
-  stopAll,
-  generateRandomNote,
-  getNoteName
+  stopAll
 };

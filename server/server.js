@@ -3,14 +3,14 @@ const http = require('http');
 const WebSocket = require('ws');
 const cors = require('cors');
 const path = require('path');
+const { VOICE_RANGES } = require('../src/voiceTypes');
 
-// Frequency configuration matching your existing application
-const FREQUENCIES = [
-    { id: 1, hertz: 440, voiceType: 'soprano', note: 'A4' },   // A4 note (concert pitch)
-    { id: 2, hertz: 220, voiceType: 'alto', note: 'A3' },      // A3 note
-    { id: 3, hertz: 880, voiceType: 'tenor', note: 'A5' },     // A5 note
-    { id: 4, hertz: 110, voiceType: 'bass', note: 'A2' }       // A2 note
-];
+const FREQUENCIES = Object.values(VOICE_RANGES).map(voice => ({
+  id: voice.id,
+  hertz: voice.hertz,
+  voiceType: voice.label.split(' ')[0].toLowerCase(),
+  note: voice.note
+}));
 
 // Express and WebSocket server setup
 const app = express();

@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import './DroneChoirPerformer.css';
 import VoiceModule from './VoiceModule';
-import { VOICE_RANGES, generateRandomNote } from './voiceTypes';
+import { VOICE_RANGES } from './voiceTypes';
 import { startUnison, startAll, stopAll } from './performance';
 
 const DroneChoirPerformer = () => {
@@ -27,15 +27,9 @@ const DroneChoirPerformer = () => {
     }
     return sharedAudioContext;
   };
-  
-  // Define voice ranges for the different voice types
-  // const voiceRanges = {
-  //       bass: { min: 98.00, max: 261.63, label: 'Bass (G2-C4)' },
-  //       tenor: { min: 130.81, max: 349.23, label: 'Tenor (C3-F4)' },
-  //       alto: { min: 164.81, max: 392.00, label: 'Alto (E3-G4)' },
-  //     soprano: { min: 196.00, max: 523.25, label: 'Soprano (G3-C5)' }
-  // };
-  
+
+  const voiceRanges = VOICE_RANGES;
+
   // Handle the master control button click
   const handleMasterControlClick = () => {
     if (isAllPlaying) {
