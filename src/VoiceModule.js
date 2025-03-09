@@ -181,17 +181,17 @@ const VoiceModule = forwardRef(({ voiceType, onPlayStateChange, sharedAudioConte
     }, 5000);
 
       setAutoGenerate(true);
-  };
+    };
     
-  // Stop auto generation
-  const stopAutoGeneration = () => {
-    if (autoGenIntervalRef.current) {
-      clearInterval(autoGenIntervalRef.current);
-      autoGenIntervalRef.current = null;
-    }
-    
-    setAutoGenerate(false);
-  };
+    // Stop auto generation
+    const stopAutoGeneration = () => {
+      if (autoGenIntervalRef.current) {
+        clearInterval(autoGenIntervalRef.current);
+        autoGenIntervalRef.current = null;
+      }
+      
+      setAutoGenerate(false);
+    };
   
   // Play the next note in the queue
   const playNextInQueue = () => {
@@ -329,6 +329,8 @@ const VoiceModule = forwardRef(({ voiceType, onPlayStateChange, sharedAudioConte
       
       // Schedule cleanup
       oscillator.onended = () => {
+        console.log(`${voiceType} note finished: ${noteData.note} (${noteData.frequency.toFixed(2)} Hz)`);
+
         oscillator.disconnect();
         gainNode.disconnect();
         analyser.disconnect();
@@ -345,6 +347,8 @@ const VoiceModule = forwardRef(({ voiceType, onPlayStateChange, sharedAudioConte
           cancelAnimationFrame(animationFrameRef.current);
           animationFrameRef.current = null;
         }
+
+        playNextInQueue();
       };
     } catch (e) {
       console.error(`Error playing note in ${voiceType}:`, e);
