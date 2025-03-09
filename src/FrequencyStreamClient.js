@@ -23,6 +23,35 @@ class FrequencyStreamClient {
         this.handleMessage = this.handleMessage.bind(this);
         this.handleClose = this.handleClose.bind(this);
         this.handleError = this.handleError.bind(this);
+
+        this.listeners = {
+            connect: [],
+            disconnect: [],
+            error: [],
+            streamStart: [],
+            streamStop: []
+        };
+    }
+
+    on(eventName, callback) {
+        if (this.listeners[eventName]) {
+            this.listeners[eventName].push(callback);
+            return this;  // Allow method chaining
+        }
+        console.warn(`Unsupported event: ${eventName}`);
+        return this;
+    }
+
+    emit(eventName, ...args) {
+        if (this.listeners[eventName]) {
+            this.listeners[eventName].forEach(callback => {
+                try {
+                    callback(...args);
+                } catch (error) {
+                    console.error(`Error in ${eventName} event handler:`, error);
+                }
+            });
+        }
     }
 
     // Initialize WebSocket connection
@@ -43,12 +72,12 @@ class FrequencyStreamClient {
     }
 
     // WebSocket connection opened
-    handleOpen() {
+    handleOpen(event) {
         console.log('Connected to frequency streaming server');
         this.isConnected = true;
         this.connectionAttempts = 0;
         
-        // Request initial frequency list
+        this.emit('connect', event);
         this.requestFrequencies();
     }
 
@@ -72,6 +101,8 @@ class FrequencyStreamClient {
                 case 'ERROR':
                     console.error('Streaming error:', data.message);
                     break;
+                default:
+                    console.warn('Unhandled message type:', data.type);
             }
         } catch (error) {
             console.error('Error processing message:', error);
@@ -81,6 +112,7 @@ class FrequencyStreamClient {
     // WebSocket connection closed
     handleClose(event) {
         this.isConnected = false;
+        this.emit('disconnect', event);
         console.log('Disconnected from frequency streaming server');
         
         // Attempt reconnection with exponential backoff
@@ -98,6 +130,7 @@ class FrequencyStreamClient {
     // WebSocket error handling
     handleError(error) {
         console.error('WebSocket error:', error);
+        this.emit('error', error);
     }
 
     // Request available frequencies from the server

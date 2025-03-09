@@ -99,6 +99,14 @@ export const getAllVoiceTypes = () => {
     return Object.keys(VOICE_RANGES);
 };
 
+const voiceTypesExport = {
+    VOICE_RANGES,
+    getVoiceConfig,
+    generateRandomNote,
+    getNoteName,
+    getAllVoiceTypes
+};
+
 export default {
     VOICE_RANGES,
     getVoiceConfig,

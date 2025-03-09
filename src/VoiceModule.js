@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef, forwardRef, useImperativeHandle } from 'react';
 import { VOICE_RANGES, generateRandomNote, getNoteName } from './voiceTypes';
 import './VoiceModule.css';
-import FrequencyStreamClient from './FrequencyStreamClient';
 
 const VoiceModule = forwardRef(({ voiceType, onPlayStateChange, sharedAudioContext }, ref) => {
   // State variables
@@ -19,7 +18,6 @@ const VoiceModule = forwardRef(({ voiceType, onPlayStateChange, sharedAudioConte
   // Refs
   const audioQueueRef = useRef([]);
   const isPlayingRef = useRef(false);
-  const audioElementRef = useRef(null);
   const oscillatorRef = useRef(null);
   const gainNodeRef = useRef(null);
   const analyserRef = useRef(null);
@@ -38,18 +36,6 @@ const VoiceModule = forwardRef(({ voiceType, onPlayStateChange, sharedAudioConte
       analyserRef.current = analyser;
     }
   }, [sharedAudioContext, audioContext]);
-
-  // Initialize streaming client
-  useEffect(() => {
-    const client = new FrequencyStreamClient();
-    client.connect();
-    setStreamClient(client);
-
-    // Cleanup on unmount
-    return () => {
-      client.disconnect();
-    };
-  }, []);
   
   // Expose methods to parent component via ref
     useImperativeHandle(ref, () => ({

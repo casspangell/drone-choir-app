@@ -1,10 +1,9 @@
 // Contains all performance-related functionality for the Drone Choir system
 
-import { VOICE_RANGES, generateRandomNote, getNoteName } from './voiceTypes';
+import { getNoteName } from './voiceTypes';
 
 // Start all voice modules on the same pitch for 10 seconds
-const startUnison = (voiceRanges, voiceModuleRefs, initSharedAudioContext, setIsAllPlaying) => {
-
+const startUnison = (voiceModuleRefs, initSharedAudioContext, setIsAllPlaying) => {
   const commonPitch = 220; // A3
   const noteName = getNoteName(commonPitch);
   
