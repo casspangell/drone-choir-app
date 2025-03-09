@@ -26,10 +26,10 @@ const DroneChoirPerformer = () => {
   
   // Voice ranges for different voice types
   const voiceRanges = {
-    soprano: { min: 261.63, max: 1046.50 }, // C4 to C6
-    alto: { min: 174.61, max: 698.46 },     // F3 to F5
-    tenor: { min: 130.81, max: 523.25 },    // C3 to C5
-    bass: { min: 82.41, max: 329.63 }       // E2 to E4
+    soprano: { min: 261.63, max: 880.00 },  // C4 to A5
+    alto: { min: 174.61, max: 587.33 },     // F3 to D5
+    tenor: { min: 130.81, max: 440.00 },    // C3 to A4
+    bass: { min: 87.31, max: 329.63 }       // F2 to E4
   };
 
   useEffect(() => {
@@ -456,10 +456,10 @@ const DroneChoirPerformer = () => {
   // Render voice type options
   const renderVoiceOptions = () => {
     const options = [
-      { value: 'soprano', label: 'Soprano (C4-C6)' },
-      { value: 'alto', label: 'Alto (F3-F5)' },
-      { value: 'tenor', label: 'Tenor (C3-C5)' },
-      { value: 'bass', label: 'Bass (E2-E4)' }
+      { value: 'soprano', label: 'Soprano (C4-A5)' },
+      { value: 'alto', label: 'Alto (F3-D5)' },
+      { value: 'tenor', label: 'Tenor (C3-A4)' },
+      { value: 'bass', label: 'Bass (F2-E4)' }
     ];
     
     return options.map(option => (
