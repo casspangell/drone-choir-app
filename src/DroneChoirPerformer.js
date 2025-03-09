@@ -16,6 +16,7 @@ const DroneChoirPerformer = () => {
 
   // State for controlling all modules
   const [isAllPlaying, setIsAllPlaying] = useState(false);
+  const [soloVoice, setSoloVoice] = useState(null);
   
   // Create refs to access the voice module methods
   const voiceModuleRefs = {
@@ -37,6 +38,18 @@ const DroneChoirPerformer = () => {
     }
     return sharedAudioContext;
   }, [sharedAudioContext]);
+  
+
+  const handleSoloToggle = useCallback((voiceType, isSolo) => {
+    console.log('Solo toggle called:', { voiceType, isSolo });
+    
+    if (isSolo) {
+      setSoloVoice(voiceType);
+      
+    } else {
+      setSoloVoice(null);
+    }
+  }, []);
   
   // Handle the master control button click
   const handleMasterControlClick = useCallback(() => {
@@ -67,7 +80,7 @@ const DroneChoirPerformer = () => {
     startUnison(voiceModuleRefs, initSharedAudioContext, setIsAllPlaying);
   }, [startFrequencyStream, initSharedAudioContext, voiceModuleRefs]);
 
-    return (
+  return (
     <div className="drone-choir-multi">
       {/* Connection status and error handling */}
       {error && (
@@ -124,6 +137,9 @@ const DroneChoirPerformer = () => {
                 }
               }
             }}
+            onSoloToggle={handleSoloToggle}
+            isSoloMode={soloVoice !== null}
+            isCurrentSolo={soloVoice === voiceType}
           />
         ))}
       </div>

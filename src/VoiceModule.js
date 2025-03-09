@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, forwardRef, useImperativeHandle } f
 import { VOICE_RANGES, generateRandomNote, getNoteName } from './voiceTypes';
 import './VoiceModule.css';
 
-const VoiceModule = forwardRef(({ voiceType, onPlayStateChange, sharedAudioContext, onSoloToggle }, ref) => {
+const VoiceModule = forwardRef(({ voiceType, onPlayStateChange, sharedAudioContext, onSoloToggle, isSoloMode, isCurrentSolo  }, ref) => {
   // State variables
   const [currentNote, setCurrentNote] = useState(null);
   const [nextNote, setNextNote] = useState(null);
@@ -76,13 +76,20 @@ const VoiceModule = forwardRef(({ voiceType, onPlayStateChange, sharedAudioConte
       return isPlayingRef.current;
     },
     toggleSolo: () => {
+      console.log(`Toggling solo for ${voiceType}`);
       const newSoloState = !isSolo;
       setIsSolo(newSoloState);
       
-      // Notify parent component about solo state change
       if (onSoloToggle) {
+        console.log(`Calling onSoloToggle with ${voiceType}, ${newSoloState}`);
         onSoloToggle(voiceType, newSoloState);
       }
+    },
+    get isSolo() {
+      return isSolo;
+    },
+    adjustVolume: (soloVolume) => {
+      adjustVolumeForSolo(soloVolume);
     },
     get isSolo() {
       return isSolo;
@@ -273,6 +280,7 @@ const VoiceModule = forwardRef(({ voiceType, onPlayStateChange, sharedAudioConte
     // Modify playNote to use the consistent audio context
   const playNote = (noteData) => {
     const ctx = audioContextRef.current;
+    const gainMultiplier = (isSoloMode && !isCurrentSolo) ? 0 : 1;
 
     if (!ctx) {
         console.error(`No audio context available for ${voiceType}`);
@@ -366,6 +374,20 @@ const VoiceModule = forwardRef(({ voiceType, onPlayStateChange, sharedAudioConte
     } catch (e) {
       console.error(`Error playing note in ${voiceType}:`, e);
     }
+};
+
+const adjustVolumeForSolo = (soloVolume) => {
+  if (gainNodeRef.current) {
+    try {
+      const ctx = audioContextRef.current;
+      if (ctx) {
+        // Immediately set the gain value
+        gainNodeRef.current.gain.setValueAtTime(soloVolume, ctx.currentTime);
+      }
+    } catch (error) {
+      console.error(`Error adjusting volume for ${voiceType}:`, error);
+    }
+  }
 };
   
   const startPerformance = (providedContext = null) => {
