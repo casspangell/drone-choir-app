@@ -179,12 +179,18 @@ class FrequencyStreamClient {
         oscillator.type = 'sine';
         oscillator.frequency.setValueAtTime(frequencyData.hertz, this.audioContext.currentTime);
 
+        // Apply fade in and out
+        gainNode.gain.setValueAtTime(0, this.audioContext.currentTime);
+        gainNode.gain.linearRampToValueAtTime(0.5, this.audioContext.currentTime + 0.5);
+        gainNode.gain.linearRampToValueAtTime(0, this.audioContext.currentTime + 1);
+
         // Connect nodes
         oscillator.connect(gainNode);
         gainNode.connect(this.audioContext.destination);
 
-        // Start oscillator
+        // Start and stop oscillator with fade
         oscillator.start();
+        oscillator.stop(this.audioContext.currentTime + 1);
 
         // Store oscillator references
         this.oscillators.set(frequencyData.id, {
@@ -201,20 +207,16 @@ class FrequencyStreamClient {
         
         if (oscData) {
             try {
-                // Fade out and stop
                 const { oscillator, gainNode } = oscData;
                 const currentTime = this.audioContext.currentTime;
                 
+                // Immediate stop and disconnect
                 gainNode.gain.cancelScheduledValues(currentTime);
-                gainNode.gain.setValueAtTime(gainNode.gain.value, currentTime);
-                gainNode.gain.linearRampToValueAtTime(0, currentTime + 0.5);
+                gainNode.gain.setValueAtTime(0, currentTime);
                 
-                // Actually stop after fade out
-                setTimeout(() => {
-                    oscillator.stop();
-                    oscillator.disconnect();
-                    gainNode.disconnect();
-                }, 500);
+                oscillator.stop(currentTime);
+                oscillator.disconnect();
+                gainNode.disconnect();
                 
                 // Remove from oscillators map
                 this.oscillators.delete(frequencyId);
