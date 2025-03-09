@@ -1,7 +1,7 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, forwardRef, useImperativeHandle } from 'react';
 import './VoiceModule.css';
 
-const VoiceModule = ({ voiceType, voiceRange }) => {
+const VoiceModule = forwardRef(({ voiceType, voiceRange, onPlayStateChange, sharedAudioContext }, ref) => {
   // State variables
   const [currentNote, setCurrentNote] = useState(null);
   const [nextNote, setNextNote] = useState(null);
@@ -23,9 +23,47 @@ const VoiceModule = ({ voiceType, voiceRange }) => {
   const animationFrameRef = useRef(null);
   const autoGenIntervalRef = useRef(null);
   
+  // Update audioContext when sharedAudioContext changes
+  useEffect(() => {
+    if (sharedAudioContext && !audioContext) {
+      setAudioContext(sharedAudioContext);
+      
+      // Create an analyzer node for this module
+      const analyser = sharedAudioContext.createAnalyser();
+      analyser.fftSize = 2048;
+      analyserRef.current = analyser;
+    }
+  }, [sharedAudioContext, audioContext]);
+  
+  // Expose methods to parent component via ref
+  useImperativeHandle(ref, () => ({
+    startPerformance: (providedContext = null) => {
+      if (providedContext && !audioContext) {
+        setAudioContext(providedContext);
+        const analyser = providedContext.createAnalyser();
+        analyser.fftSize = 2048;
+        analyserRef.current = analyser;
+        
+        // Small delay to ensure context is set
+        setTimeout(() => {
+          startPerformance();
+        }, 50);
+      } else {
+        startPerformance();
+      }
+    },
+    stopPerformance: () => {
+      stopPerformance();
+    },
+    get isPlaying() {
+      return isPlayingRef.current;
+    }
+  }));
+  
   // Initialize audio context
   const initAudio = () => {
     if (!audioContext) {
+      // If no context exists, create a new one
       const ctx = new (window.AudioContext || window.webkitAudioContext)();
       const analyser = ctx.createAnalyser();
       analyser.fftSize = 2048;
@@ -36,6 +74,15 @@ const VoiceModule = ({ voiceType, voiceRange }) => {
       return { ctx, analyser };
     }
     
+    // If there's no analyser yet but we have a context, create one
+    if (!analyserRef.current && audioContext) {
+      const analyser = audioContext.createAnalyser();
+      analyser.fftSize = 2048;
+      analyserRef.current = analyser;
+      
+      return { ctx: audioContext, analyser };
+    }
+    
     return { ctx: audioContext, analyser: analyserRef.current };
   };
   
@@ -43,6 +90,13 @@ const VoiceModule = ({ voiceType, voiceRange }) => {
   useEffect(() => {
     audioQueueRef.current = audioQueue;
   }, [audioQueue]);
+  
+  // Notify parent of play state changes
+  useEffect(() => {
+    if (onPlayStateChange) {
+      onPlayStateChange(isPlaying);
+    }
+  }, [isPlaying, onPlayStateChange]);
   
   // Generate a random frequency within the voice range
   const generateRandomFrequency = () => {
@@ -103,20 +157,33 @@ const VoiceModule = ({ voiceType, voiceRange }) => {
       clearInterval(autoGenIntervalRef.current);
     }
     
-    // Generate initial note
-    const initialNote = generateNewNote();
-    updateAudioQueue([...audioQueueRef.current, initialNote]);
+    // Generate initial note if queue is empty
+    if (audioQueueRef.current.length === 0) {
+      const initialNote = generateNewNote();
+      updateAudioQueue([initialNote]);
+      
+      // If playing, start this note immediately
+      if (isPlayingRef.current) {
+        // Small delay to ensure state updates
+        setTimeout(() => {
+          playNextInQueue();
+        }, 50);
+      }
+    }
     
     // Start the interval for generating new notes
     autoGenIntervalRef.current = setInterval(() => {
       const newNote = generateNewNote();
+      console.log(`${voiceType} auto-generating new note: ${newNote.note}`);
       
       updateAudioQueue(prevQueue => {
+        // Add the new note to the queue
         const updatedQueue = [...prevQueue, newNote];
         
-        // If we're playing and this is the first note added, start playing
+        // If we're playing and queue was empty, start playing this note
         if (isPlayingRef.current && prevQueue.length === 0) {
-          playNextInQueue();
+          console.log(`${voiceType} starting playback with auto-generated note`);
+          setTimeout(() => playNextInQueue(), 50);
         }
         
         return updatedQueue;
@@ -138,17 +205,29 @@ const VoiceModule = ({ voiceType, voiceRange }) => {
   
   // Play the next note in the queue
   const playNextInQueue = () => {
+    console.log(`${voiceType} playNextInQueue called, queue length: ${audioQueueRef.current.length}`);
+    
     if (audioQueueRef.current.length === 0) {
+      console.log(`${voiceType} queue is empty, checking auto-generate`);
       // If there are no more notes but we're still playing,
       // wait for auto-generation to add more
       if (autoGenerate && isPlayingRef.current) {
-        // Keep checking for new notes
+        console.log(`${voiceType} auto-generate is on, generating a new note`);
+        // Generate a new note immediately instead of waiting
+        const newNote = generateNewNote();
+        
+        // Update the queue with the new note
+        updateAudioQueue([newNote]);
+        
+        // Start playing this note after a small delay to ensure state updates
         setTimeout(() => {
-          if (audioQueueRef.current.length > 0 && isPlayingRef.current) {
+          if (isPlayingRef.current) {
+            console.log(`${voiceType} playing newly generated note`);
             playNextInQueue();
           }
-        }, 1000);
+        }, 50);
       } else {
+        console.log(`${voiceType} no more notes and auto-generate is off`);
         setCurrentNote(null);
         setNextNote(null);
       }
@@ -157,6 +236,7 @@ const VoiceModule = ({ voiceType, voiceRange }) => {
     
     // Get the next note from the queue
     const nextNoteToPlay = audioQueueRef.current[0];
+    console.log(`${voiceType} selected note to play: ${nextNoteToPlay.note}`);
     
     // Update the queue - remove the first item
     const newQueue = audioQueueRef.current.slice(1);
@@ -175,65 +255,104 @@ const VoiceModule = ({ voiceType, voiceRange }) => {
   
   // Play a specific note
   const playNote = (noteData) => {
-    const { ctx, analyser } = initAudio();
+    // Make sure audio context is initialized
+    if (!audioContext) {
+      console.error(`No audio context available for ${voiceType}`);
+      return;
+    }
     
-    // Create new oscillator
-    const oscillator = ctx.createOscillator();
-    const gainNode = ctx.createGain();
+    // Ensure we have an analyser
+    let analyser = analyserRef.current;
+    if (!analyser) {
+      analyser = audioContext.createAnalyser();
+      analyser.fftSize = 2048;
+      analyserRef.current = analyser;
+    }
     
-    // Stop any currently playing note AFTER creating the new ones
+    // Stop any currently playing note
     if (oscillatorRef.current) {
       try {
         oscillatorRef.current.stop();
+        oscillatorRef.current = null;
       } catch (e) {
         console.log(`Error stopping previous oscillator in ${voiceType}:`, e);
       }
-      oscillatorRef.current = null;
     }
     
-    // Set up oscillator
-    oscillator.type = 'sine';
-    oscillator.frequency.value = noteData.frequency;
-    
-    // Connect nodes
-    oscillator.connect(gainNode);
-    gainNode.connect(analyser);
-    analyser.connect(ctx.destination);
-    
-    // Apply slight fade-in
-    gainNode.gain.setValueAtTime(0, ctx.currentTime);
-    gainNode.gain.linearRampToValueAtTime(0.5, ctx.currentTime + 0.5);
-    
-    // Schedule fade-out
-    gainNode.gain.linearRampToValueAtTime(0.5, ctx.currentTime + noteData.duration - 0.5);
-    gainNode.gain.linearRampToValueAtTime(0, ctx.currentTime + noteData.duration);
-    
-    // Store references
-    oscillatorRef.current = oscillator;
-    gainNodeRef.current = gainNode;
-    
-    // Set up visualization
-    setupVisualization();
-    
-    // Start oscillator
+    // Create new audio nodes
     try {
+      // Create new oscillator
+      const oscillator = audioContext.createOscillator();
+      const gainNode = audioContext.createGain();
+      
+      // Set up oscillator
+      oscillator.type = 'sine';
+      oscillator.frequency.value = noteData.frequency;
+      
+      // Connect nodes
+      oscillator.connect(gainNode);
+      gainNode.connect(analyser);
+      analyser.connect(audioContext.destination);
+      
+      // Apply slight fade-in
+      gainNode.gain.setValueAtTime(0, audioContext.currentTime);
+      gainNode.gain.linearRampToValueAtTime(0.5, audioContext.currentTime + 0.5);
+      
+      // Schedule fade-out
+      gainNode.gain.linearRampToValueAtTime(0.5, audioContext.currentTime + noteData.duration - 0.5);
+      gainNode.gain.linearRampToValueAtTime(0, audioContext.currentTime + noteData.duration);
+      
+      // Store references
+      oscillatorRef.current = oscillator;
+      gainNodeRef.current = gainNode;
+      
+      // Set up visualization
+      setupVisualization();
+      
+      // Start oscillator
       oscillator.start();
+      console.log(`${voiceType} playing note: ${noteData.note} (${noteData.frequency.toFixed(2)} Hz)`);
+      
+      // Schedule the end of the note and playing the next note
+      const endTimeout = setTimeout(() => {
+        // Play the next note when the current one ends
+        if (isPlayingRef.current) {
+          // Check if there are notes in the queue
+          if (audioQueueRef.current.length > 0) {
+            console.log(`${voiceType} scheduling next note from queue`);
+            playNextInQueue();
+          } else if (autoGenerate) {
+            // If auto-generate is on but queue is empty, add a new note and play it
+            console.log(`${voiceType} generating new note as queue is empty`);
+            const newNote = generateNewNote();
+            updateAudioQueue([newNote]);
+            
+            // Small delay to ensure state updates
+            setTimeout(() => {
+              if (isPlayingRef.current) {
+                playNextInQueue();
+              }
+            }, 50);
+          } else {
+            console.log(`${voiceType} queue empty and auto-generate off, stopping playback`);
+            setCurrentNote(null);
+            setNextNote(null);
+          }
+        }
+      }, noteData.duration * 1000);
+      
+      // Store the timeout so we can clear it if needed
+      return () => clearTimeout(endTimeout);
     } catch (e) {
-      console.error(`Error starting oscillator in ${voiceType}:`, e);
+      console.error(`Error playing note in ${voiceType}:`, e);
     }
-    
-    // Schedule the end of the note
-    setTimeout(() => {
-      // Play the next note when the current one ends
-      if (isPlayingRef.current) {
-        playNextInQueue();
-      }
-    }, noteData.duration * 1000);
   };
   
   // Start the performance
   const startPerformance = () => {
-    initAudio();
+    // Initialize audio if needed
+    const { ctx, analyser } = initAudio();
+    
     setIsPlaying(true);
     isPlayingRef.current = true;
     
@@ -280,29 +399,35 @@ const VoiceModule = ({ voiceType, voiceRange }) => {
     setIsPlaying(false);
     isPlayingRef.current = false;
     
-    if (oscillatorRef.current) {
-      const currentTime = audioContext.currentTime;
-      
-      // Fade out
-      gainNodeRef.current.gain.setValueAtTime(
-        gainNodeRef.current.gain.value, 
-        currentTime
-      );
-      gainNodeRef.current.gain.linearRampToValueAtTime(0, currentTime + 0.5);
-      
-      // Stop after fade out
-      setTimeout(() => {
-        if (oscillatorRef.current) {
-          oscillatorRef.current.stop();
-          oscillatorRef.current = null;
+    if (oscillatorRef.current && audioContext) {
+      try {
+        const currentTime = audioContext.currentTime;
+        
+        // Fade out
+        if (gainNodeRef.current) {
+          gainNodeRef.current.gain.setValueAtTime(
+            gainNodeRef.current.gain.value, 
+            currentTime
+          );
+          gainNodeRef.current.gain.linearRampToValueAtTime(0, currentTime + 0.5);
         }
         
-        // Cancel animation frame
-        if (animationFrameRef.current) {
-          cancelAnimationFrame(animationFrameRef.current);
-          animationFrameRef.current = null;
-        }
-      }, 500);
+        // Stop after fade out
+        setTimeout(() => {
+          if (oscillatorRef.current) {
+            oscillatorRef.current.stop();
+            oscillatorRef.current = null;
+          }
+          
+          // Cancel animation frame
+          if (animationFrameRef.current) {
+            cancelAnimationFrame(animationFrameRef.current);
+            animationFrameRef.current = null;
+          }
+        }, 500);
+      } catch (e) {
+        console.error(`Error stopping performance in ${voiceType}:`, e);
+      }
     }
   };
   
@@ -394,8 +519,12 @@ const VoiceModule = ({ voiceType, voiceRange }) => {
     return () => {
       window.removeEventListener('resize', handleResize);
       // Clean up audio resources
-      if (oscillatorRef.current) {
-        oscillatorRef.current.stop();
+      if (oscillatorRef.current && audioContext) {
+        try {
+          oscillatorRef.current.stop();
+        } catch (e) {
+          console.log('Error cleaning up oscillator:', e);
+        }
       }
       if (animationFrameRef.current) {
         cancelAnimationFrame(animationFrameRef.current);
@@ -404,7 +533,7 @@ const VoiceModule = ({ voiceType, voiceRange }) => {
         clearInterval(autoGenIntervalRef.current);
       }
     };
-  }, []);
+  }, [audioContext]);
   
   // Handle auto-generate toggle
   const handleAutoGenerateToggle = () => {
@@ -553,6 +682,6 @@ const VoiceModule = ({ voiceType, voiceRange }) => {
       </div>
     </div>
   );
-};
+});
 
 export default VoiceModule;

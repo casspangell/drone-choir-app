@@ -277,6 +277,41 @@
   transition: height 0.1s ease;
 }
 
+.master-controls {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 20px;
+}
+
+.master-control-button {
+  padding: 15px 30px;
+  font-size: 18px;
+  font-weight: bold;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.master-control-button.start {
+  background-color: #48bb78;
+  color: white;
+}
+
+.master-control-button.start:hover {
+  background-color: #38a169;
+}
+
+.master-control-button.stop {
+  background-color: #f56565;
+  color: white;
+}
+
+.master-control-button.stop:hover {
+  background-color: #e53e3e;
+}
+
 /* For responsive design - adjusting to different screen sizes */
 @media (max-width: 1200px) {
   .voice-modules-grid {
