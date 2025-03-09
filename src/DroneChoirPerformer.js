@@ -21,6 +21,8 @@ const DroneChoirPerformer = () => {
   const canvasRef = useRef(null);
   const animationFrameRef = useRef(null);
   const autoGenIntervalRef = useRef(null);
+  const isPlayingRef = useRef(false);
+  const audioQueueRef = useRef([]);
   
   // Voice ranges for different voice types
   const voiceRanges = {
@@ -29,6 +31,10 @@ const DroneChoirPerformer = () => {
     tenor: { min: 130.81, max: 523.25 },    // C3 to C5
     bass: { min: 82.41, max: 329.63 }       // E2 to E4
   };
+
+  useEffect(() => {
+    audioQueueRef.current = audioQueue;
+  }, [audioQueue]);
   
   // Initialize audio context
   const initAudio = () => {
@@ -96,22 +102,20 @@ const DroneChoirPerformer = () => {
     
     // Generate initial note
     const initialNote = generateNewNote();
-    setAudioQueue(prev => [...prev, initialNote]);
+    updateAudioQueue([...audioQueueRef.current, initialNote]);
     
     // Start the interval for generating new notes
     autoGenIntervalRef.current = setInterval(() => {
       const newNote = generateNewNote();
       
-      setAudioQueue(prevQueue => {
-        const updatedQueue = [...prevQueue, newNote];
-        
-        // If we're playing and this is the first note added, start playing
-        if (isPlaying && prevQueue.length === 0) {
-          playNextInQueue();
-        }
-        
-        return updatedQueue;
-      });
+      // Update queue with new note
+      updateAudioQueue([...audioQueueRef.current, newNote]);
+      console.log("Auto-generated new note:", newNote.note, "Queue length:", audioQueueRef.current.length);
+      
+      // If we're playing and this is the first note added, start playing
+      if (isPlayingRef.current && audioQueueRef.current.length === 1) {
+        playNextInQueue();
+      }
     }, 5000); // Generate a new note every 5 seconds
     
     setAutoGenerate(true);
@@ -126,45 +130,83 @@ const DroneChoirPerformer = () => {
     
     setAutoGenerate(false);
   };
+
+  const updateAudioQueue = (newQueue) => {
+    if (typeof newQueue === 'function') {
+      const updatedQueue = newQueue(audioQueueRef.current);
+      audioQueueRef.current = updatedQueue;
+      setAudioQueue(updatedQueue);
+    } else {
+      audioQueueRef.current = newQueue;
+      setAudioQueue(newQueue);
+    }
+  };
   
   // Play the next note in the queue
   const playNextInQueue = () => {
-    if (audioQueue.length === 0) {
-      setCurrentNote(null);
-      setNextNote(null);
+    console.log("Playing next note from queue, queue length:", audioQueueRef.current.length);
+    
+    if (audioQueueRef.current.length === 0) {
+      console.log("Queue empty, waiting for more notes...");
+      // If there are no more notes but we're still playing,
+      // wait for auto-generation to add more
+      if (autoGenerate && isPlayingRef.current) {
+        // Keep checking for new notes
+        setTimeout(() => {
+          console.log("Checking queue again, length:", audioQueueRef.current.length);
+          if (audioQueueRef.current.length > 0 && isPlayingRef.current) {
+            playNextInQueue();
+          }
+        }, 1000);
+      } else {
+        setCurrentNote(null);
+        setNextNote(null);
+      }
       return;
     }
     
     // Get the next note from the queue
-    const nextNoteToPlay = audioQueue[0];
-    const newQueue = audioQueue.slice(1);
-    setAudioQueue(newQueue);
+    const nextNoteToPlay = audioQueueRef.current[0];
+    console.log("Selected note to play:", nextNoteToPlay.note);
     
-    // Set up next note preview
+    // Update the queue - remove the first item
+    const newQueue = audioQueueRef.current.slice(1);
+    updateAudioQueue(newQueue);
+    console.log("Updated queue length:", newQueue.length);
+    
+    // Set current and next note for display
     setCurrentNote(nextNoteToPlay);
     setNextNote(newQueue.length > 0 ? newQueue[0] : null);
     
-    // Play the note
-    playNote(nextNoteToPlay);
-    
     // Start countdown
     startCountdown(nextNoteToPlay.duration);
+    
+    // Play the note
+    playNote(nextNoteToPlay);
   };
   
   // Play a specific note
   const playNote = (noteData) => {
+    console.log("Playing note:", noteData.note, noteData.frequency, "Hz");
+    
+    // Initialize audio context first
     const { ctx, analyser } = initAudio();
     
-    // Stop any currently playing note
-    if (oscillatorRef.current) {
-      oscillatorRef.current.stop();
-      oscillatorRef.current = null;
-    }
-    
-    // Create new oscillator
+    // Create new oscillator and gain node
     const oscillator = ctx.createOscillator();
     const gainNode = ctx.createGain();
     
+    // Stop any currently playing note AFTER creating the new ones
+    if (oscillatorRef.current) {
+      try {
+        oscillatorRef.current.stop();
+      } catch (e) {
+        console.log("Error stopping previous oscillator:", e);
+      }
+      oscillatorRef.current = null;
+    }
+    
+    // Set up oscillator
     oscillator.type = 'sine';
     oscillator.frequency.value = noteData.frequency;
     
@@ -185,36 +227,55 @@ const DroneChoirPerformer = () => {
     oscillatorRef.current = oscillator;
     gainNodeRef.current = gainNode;
     
-    // Start oscillator
-    oscillator.start();
+    // Set up visualization
+    setupVisualization();
+    
+    // Start oscillator AFTER everything is set up
+    try {
+      oscillator.start();
+      console.log("Oscillator started successfully");
+    } catch (e) {
+      console.error("Error starting oscillator:", e);
+    }
     
     // Schedule the end of the note
-    setTimeout(() => {
-      if (oscillatorRef.current === oscillator) {
-        oscillatorRef.current = null;
-        // Play the next note if auto-playing is on
-        if (isPlaying) {
-          playNextInQueue();
-        }
+    const endTimeout = setTimeout(() => {
+      console.log("Note ended, scheduling next note. isPlaying:", isPlayingRef.current);
+      // Play the next note when the current one ends - use the ref instead of state
+      if (isPlayingRef.current) {
+        playNextInQueue();
       }
     }, noteData.duration * 1000);
     
-    // Set up visualization
-    setupVisualization();
+    return () => {
+      clearTimeout(endTimeout);
+    };
   };
   
   // Start the performance
   const startPerformance = () => {
     initAudio();
     setIsPlaying(true);
+    isPlayingRef.current = true;
     
-    // Start playing if there are notes in the queue
-    if (audioQueue.length > 0) {
+    // Generate a note if queue is empty
+    if (audioQueueRef.current.length === 0) {
+      const initialNote = generateNewNote();
+      updateAudioQueue([initialNote]);
+      
+      // Give a moment for state to update
+      setTimeout(() => {
+        if (isPlayingRef.current) {
+          playNextInQueue();
+        }
+      }, 50);
+    } else {
+      // Start playing if there are notes in the queue
       playNextInQueue();
     }
     
-    // Start auto-generation if it's enabled
-    if (autoGenerate && !autoGenIntervalRef.current) {
+    // Start auto-generation if it's not already enabled
+    if (!autoGenerate) {
       startAutoGeneration();
     }
   };
@@ -237,6 +298,9 @@ const DroneChoirPerformer = () => {
   
   // Stop the performance
   const stopPerformance = () => {
+    setIsPlaying(false);
+    isPlayingRef.current = false;
+
     if (oscillatorRef.current) {
       const currentTime = audioContext.currentTime;
       
@@ -259,8 +323,6 @@ const DroneChoirPerformer = () => {
         }
       }, 500);
     }
-    
-    setIsPlaying(false);
   };
   
   // Set up waveform visualization
@@ -380,12 +442,12 @@ const DroneChoirPerformer = () => {
   // Add a single note to the queue
   const addNoteToQueue = () => {
     const newNote = generateNewNote();
-    setAudioQueue(prev => [...prev, newNote]);
+    updateAudioQueue([...audioQueueRef.current, newNote]);
   };
   
   // Clear the queue
   const clearQueue = () => {
-    setAudioQueue([]);
+    updateAudioQueue([]);
   };
   
   // Render voice type options
