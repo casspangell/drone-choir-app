@@ -26,6 +26,26 @@ const VoiceModule = forwardRef(({ voiceType, onPlayStateChange, sharedAudioConte
   const animationFrameRef = useRef(null);
   const autoGenIntervalRef = useRef(null);
   const audioContextRef = useRef(null);
+
+  // To manage periodic queue checking
+  useEffect(() => {
+    // Only start checking if the module is playing
+    if (!isPlayingRef.current) return;
+
+    // Create an interval to check the queue
+    const queueCheckInterval = setInterval(() => {
+      // Check if no oscillator is currently playing and there are notes in the queue
+      if (!oscillatorRef.current && audioQueueRef.current.length > 0) {
+        console.log(`${voiceType} periodic queue check triggered`);
+        playNextInQueue();
+      }
+    }, 2000); // Check every 2 seconds
+
+    // Cleanup interval when component unmounts or stops playing
+    return () => {
+      clearInterval(queueCheckInterval);
+    };
+  }, [isPlayingRef.current, audioQueueRef.current.length]);
   
   // Initialize audio context on component mount
   useEffect(() => {
@@ -226,8 +246,9 @@ const VoiceModule = forwardRef(({ voiceType, onPlayStateChange, sharedAudioConte
         
         updateAudioQueue([newNote]);
         
+        // Immediately play the new note if nothing is currently playing
         setTimeout(() => {
-          if (isPlayingRef.current) {
+          if (isPlayingRef.current && !oscillatorRef.current) {
             console.log(`${voiceType} playing newly generated note`);
             playNextInQueue();
           }
@@ -599,7 +620,18 @@ const adjustVolumeForSolo = (soloVolume) => {
   // Add a single note to the queue
   const addNoteToQueue = () => {
     const newNote = generateRandomNote(voiceRange);
-    updateAudioQueue(prevQueue => [...prevQueue, newNote]);
+    updateAudioQueue(prevQueue => {
+      const updatedQueue = [...prevQueue, newNote];
+      
+      // If nothing is playing, start playing the new note
+      if (isPlayingRef.current && !oscillatorRef.current) {
+        setTimeout(() => {
+          playNextInQueue();
+        }, 50);
+      }
+      
+      return updatedQueue;
+    });
   };
   
   // Render pitch indicator (visual aid for performers)
