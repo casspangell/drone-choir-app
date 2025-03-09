@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, forwardRef, useImperativeHandle } f
 import { VOICE_RANGES, generateRandomNote, getNoteName } from './voiceTypes';
 import './VoiceModule.css';
 
-const VoiceModule = forwardRef(({ voiceType, onPlayStateChange, sharedAudioContext }, ref) => {
+const VoiceModule = forwardRef(({ voiceType, onPlayStateChange, sharedAudioContext, onSoloToggle }, ref) => {
   // State variables
   const [currentNote, setCurrentNote] = useState(null);
   const [nextNote, setNextNote] = useState(null);
@@ -14,6 +14,7 @@ const VoiceModule = forwardRef(({ voiceType, onPlayStateChange, sharedAudioConte
   const [audioQueue, setAudioQueue] = useState([]);
   const [streamClient, setStreamClient] = useState(null);
   const voiceRange = VOICE_RANGES[voiceType];
+  const [isSolo, setIsSolo] = useState(false);
   
   // Refs
   const audioQueueRef = useRef([]);
@@ -73,6 +74,18 @@ const VoiceModule = forwardRef(({ voiceType, onPlayStateChange, sharedAudioConte
     },
     get isPlaying() {
       return isPlayingRef.current;
+    },
+    toggleSolo: () => {
+      const newSoloState = !isSolo;
+      setIsSolo(newSoloState);
+      
+      // Notify parent component about solo state change
+      if (onSoloToggle) {
+        onSoloToggle(voiceType, newSoloState);
+      }
+    },
+    get isSolo() {
+      return isSolo;
     }
   }));
   
@@ -596,6 +609,21 @@ const VoiceModule = forwardRef(({ voiceType, onPlayStateChange, sharedAudioConte
   
   return (
     <div className="drone-choir-container">
+      <div className="module-controls">
+        <button
+          onClick={() => {
+            const newSoloState = !isSolo;
+            setIsSolo(newSoloState);
+            
+            if (onSoloToggle) {
+              onSoloToggle(voiceType, newSoloState);
+            }
+          }}
+          className={`module-control-button solo-button ${isSolo ? 'active' : ''}`}
+        >
+          {isSolo ? 'Unsolo' : 'Solo'}
+        </button>
+      </div>
       <h2 className="voice-title">{voiceRange.label}</h2>
       
       {/* Performer controls */}
