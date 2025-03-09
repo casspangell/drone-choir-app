@@ -37,3 +37,25 @@
 .solo-button:hover {
   background-color: #38a169;
 }
+
+.drone-choir-container {
+  font-family: Arial, sans-serif;
+  flex: 1;
+  padding: 15px;
+  background-color: #2d3748;
+  color: white;
+  border-radius: 8px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+  min-width: 0;
+  transition: background-color 0.3s ease;
+  cursor: pointer;
+}
+
+.drone-choir-container:hover {
+  background-color: #3a4654;
+}
+
+.drone-choir-container.selected {
+  background-color: #4a154b;
+}

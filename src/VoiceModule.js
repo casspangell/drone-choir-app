@@ -15,6 +15,7 @@ const VoiceModule = forwardRef(({ voiceType, onPlayStateChange, sharedAudioConte
   const [streamClient, setStreamClient] = useState(null);
   const voiceRange = VOICE_RANGES[voiceType];
   const [isSolo, setIsSolo] = useState(false);
+  const [isSelected, setIsSelected] = useState(false);
   
   // Refs
   const audioQueueRef = useRef([]);
@@ -113,8 +114,17 @@ const VoiceModule = forwardRef(({ voiceType, onPlayStateChange, sharedAudioConte
     },
     get isSolo() {
       return isSolo;
+    },
+    get isSelected() {
+      return isSelected;
     }
   }));
+
+  // Click handler for container
+  const handleContainerClick = () => {
+    const newSelectedState = !isSelected;
+    setIsSelected(newSelectedState);
+  };
   
   // Initialize audio context
   const initAudio = () => {
@@ -662,7 +672,7 @@ const adjustVolumeForSolo = (soloVolume) => {
   };
   
   return (
-    <div className="drone-choir-container">
+    <div className={`drone-choir-container ${isSelected ? 'selected' : ''}`} onClick={handleContainerClick}>
       <div className="module-controls">
         <button
           onClick={() => {
