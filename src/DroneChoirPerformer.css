@@ -1,61 +1,62 @@
 .drone-choir-multi {
   font-family: Arial, sans-serif;
-  max-width: 1200px;
+  width: 100%;
+  max-width: 100%;
   margin: 0 auto;
   padding: 20px;
+  box-sizing: border-box;
 }
 
 .voice-modules-grid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 20px;
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 10px;
+  width: 100%;
 }
 
 .drone-choir-container {
   font-family: Arial, sans-serif;
-  max-width: 100%;
-  padding: 20px;
+  flex: 1;
+  padding: 15px;
   background-color: #2d3748;
   color: white;
   border-radius: 8px;
   box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+  /* Using a minimum width to prevent modules from becoming too narrow */
+  min-width: 0;
 }
 
-.app-title {
+/* Font size adjustments for better fit */
+.section-title {
+  font-size: 16px;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+.voice-title {
+  font-size: 18px;
+  font-weight: bold;
+  margin-bottom: 10px;
+  text-align: center;
+  color: white;
+}
+
+.note-name {
   font-size: 24px;
   font-weight: bold;
-  margin-bottom: 20px;
-  text-align: center;
+  color: #90cdf4;
 }
 
+/* Make panels more compact, but keep buttons original size */
 .control-panel {
   background-color: #4a5568;
-  padding: 15px;
+  padding: 10px;
   border-radius: 8px;
-  margin-bottom: 20px;
-}
-
-.voice-selector {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
   margin-bottom: 15px;
 }
 
-.voice-select {
-  background-color: #2d3748;
-  color: white;
-  padding: 8px;
-  border-radius: 4px;
-  border: 1px solid #4a5568;
-}
-
-.control-buttons {
-  display: flex;
-  gap: 10px;
-  margin-bottom: 15px;
-}
-
+/* Keep original button styles */
 .control-button {
   padding: 10px 15px;
   border: none;
@@ -83,9 +84,49 @@
   background-color: #e53e3e;
 }
 
-.auto-generate {
+.queue-button {
+  padding: 8px 12px;
+  border: none;
+  border-radius: 4px;
+  font-weight: bold;
+  cursor: pointer;
+  flex: 1;
+}
+
+.queue-button.add {
+  background-color: #4299e1;
+  color: white;
+}
+
+.queue-button.add:hover {
+  background-color: #3182ce;
+}
+
+/* Other styles - a bit more compact but not changing core appearance */
+.voice-selector {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.voice-select {
+  background-color: #2d3748;
+  color: white;
+  padding: 8px;
+  border-radius: 4px;
+  border: 1px solid #4a5568;
+}
+
+.control-buttons {
+  display: flex;
+  gap: 10px;
   margin-bottom: 15px;
-  padding: 10px;
+}
+
+.auto-generate {
+  margin-bottom: 10px;
+  padding: 8px;
   background-color: #2d3748;
   border-radius: 4px;
 }
@@ -108,56 +149,17 @@
   margin-top: 10px;
 }
 
-.queue-button {
-  padding: 8px 12px;
-  border: none;
-  border-radius: 4px;
-  font-weight: bold;
-  cursor: pointer;
-  flex: 1;
-}
-
-.queue-button.add {
-  background-color: #4299e1;
-  color: white;
-}
-
-.queue-button.add:hover {
-  background-color: #3182ce;
-}
-
-.queue-button.clear {
-  background-color: #a0aec0;
-  color: #2d3748;
-}
-
-.queue-button.clear:hover {
-  background-color: #cbd5e0;
-}
-
 .note-display {
   background-color: #4a5568;
-  padding: 15px;
+  padding: 12px;
   border-radius: 8px;
-  margin-bottom: 20px;
-}
-
-.section-title {
-  font-size: 18px;
-  font-weight: 600;
-  margin-bottom: 10px;
+  margin-bottom: 15px;
 }
 
 .note-info {
   display: flex;
   justify-content: space-between;
   align-items: center;
-}
-
-.note-name {
-  font-size: 32px;
-  font-weight: bold;
-  color: #90cdf4;
 }
 
 .note-name.next {
@@ -190,16 +192,16 @@
 
 .queue-display {
   background-color: #4a5568;
-  padding: 15px;
+  padding: 12px;
   border-radius: 8px;
-  margin-bottom: 20px;
+  margin-bottom: 15px;
 }
 
 .queue-items {
   background-color: #2d3748;
   border-radius: 4px;
   padding: 8px;
-  max-height: 120px;
+  max-height: 100px;
   overflow-y: auto;
 }
 
@@ -226,11 +228,7 @@
   color: #a3bffa;
 }
 
-.queue-freq {
-  color: #cbd5e0;
-}
-
-.queue-duration {
+.queue-freq, .queue-duration {
   color: #cbd5e0;
 }
 
@@ -244,9 +242,9 @@
 
 .visualization-container {
   background-color: #1a202c;
-  height: 160px;
+  height: 120px;
   border-radius: 8px;
-  margin-bottom: 20px;
+  margin-bottom: 15px;
   padding: 10px;
   display: flex;
 }
@@ -262,7 +260,7 @@
 }
 
 .pitch-indicator {
-  width: 48px;
+  width: 30px;
   height: 100%;
   background-color: #4a5568;
   border-radius: 4px;
@@ -279,16 +277,20 @@
   transition: height 0.1s ease;
 }
 
-/* For responsive design */
-@media (max-width: 1024px) {
+/* For responsive design - adjusting to different screen sizes */
+@media (max-width: 1200px) {
   .voice-modules-grid {
-    grid-template-columns: 1fr;
+    flex-wrap: wrap;
+  }
+  
+  .drone-choir-container {
+    flex-basis: calc(50% - 5px);
   }
 }
 
-@media (max-width: 600px) {
+@media (max-width: 768px) {
   .drone-choir-container {
-    padding: 10px;
+    flex-basis: 100%;
   }
   
   .note-info {
