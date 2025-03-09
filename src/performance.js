@@ -18,32 +18,11 @@ const getNoteName = (frequency) => {
 
 // Start all voice modules on the same pitch for 10 seconds
 const startUnison = (voiceRanges, voiceModuleRefs, initSharedAudioContext, setIsAllPlaying) => {
-  // Find the overlapping range for all voice types
-  const maxMinFreq = Math.max(
-    voiceRanges.soprano.min,
-    voiceRanges.alto.min,
-    voiceRanges.tenor.min,
-    voiceRanges.bass.min
-  );
+
+  const commonPitch = 220; // A3
+  const noteName = "A4";
   
-  const minMaxFreq = Math.min(
-    voiceRanges.soprano.max,
-    voiceRanges.alto.max,
-    voiceRanges.tenor.max,
-    voiceRanges.bass.max
-  );
-  
-  // Check if there's an overlapping range at all
-  if (maxMinFreq > minMaxFreq) {
-    console.error("No common range found for all voices");
-    return;
-  }
-  
-  // Choose a pitch in the middle of the common range
-  const commonPitch = (maxMinFreq + minMaxFreq) / 2;
-  const noteName = getNoteName(commonPitch);
-  
-  console.log(`Starting all voices on common pitch: ${noteName} (${commonPitch.toFixed(2)} Hz)`);
+  console.log(`Starting all voices on fixed pitch: ${noteName} (${commonPitch.toFixed(2)} Hz)`);
   
   // Initialize the shared audio context
   const ctx = initSharedAudioContext();

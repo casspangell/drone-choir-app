@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useRef, forwardRef, useImperativeHandle } from 'react';
 import './VoiceModule.css';
+import FrequencyStreamClient from './FrequencyStreamClient';
+import { VOICE_RANGES, generateRandomNote } from './voiceTypes';
 
 const VoiceModule = forwardRef(({ voiceType, voiceRange, onPlayStateChange, sharedAudioContext }, ref) => {
   // State variables
@@ -11,6 +13,7 @@ const VoiceModule = forwardRef(({ voiceType, voiceRange, onPlayStateChange, shar
   const [visualData, setVisualData] = useState({ frequency: 0, amplitude: 0 });
   const [autoGenerate, setAutoGenerate] = useState(false);
   const [audioQueue, setAudioQueue] = useState([]);
+  const [streamClient, setStreamClient] = useState(null);
   
   // Refs
   const audioQueueRef = useRef([]);
@@ -34,6 +37,18 @@ const VoiceModule = forwardRef(({ voiceType, voiceRange, onPlayStateChange, shar
       analyserRef.current = analyser;
     }
   }, [sharedAudioContext, audioContext]);
+
+  // Initialize streaming client
+  useEffect(() => {
+    const client = new FrequencyStreamClient();
+    client.connect();
+    setStreamClient(client);
+
+    // Cleanup on unmount
+    return () => {
+      client.disconnect();
+    };
+  }, []);
   
   // Expose methods to parent component via ref
     useImperativeHandle(ref, () => ({
@@ -357,7 +372,7 @@ const VoiceModule = forwardRef(({ voiceType, voiceRange, onPlayStateChange, shar
   };
   
   // Start the performance
-  const startPerformance = () => {
+  const startPerformance = (providedContext = null) => {
     // Initialize audio if needed
     const { ctx, analyser } = initAudio();
     

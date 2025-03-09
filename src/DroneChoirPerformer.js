@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import './DroneChoirPerformer.css';
 import VoiceModule from './VoiceModule';
+import { VOICE_RANGES, generateRandomNote } from './voiceTypes';
 import { startUnison, startAll, stopAll } from './performance';
 
 const DroneChoirPerformer = () => {
@@ -28,12 +29,12 @@ const DroneChoirPerformer = () => {
   };
   
   // Define voice ranges for the different voice types
-  const voiceRanges = {
-    soprano: { min: 196.00, max: 523.25, label: 'Soprano (G3-C5)' },
-    alto: { min: 164.81, max: 392.00, label: 'Alto (E3-G4)' },
-    tenor: { min: 130.81, max: 349.23, label: 'Tenor (C3-F4)' },
-    bass: { min: 98.00, max: 261.63, label: 'Bass (G2-C4)' }
-  };
+  // const voiceRanges = {
+  //       bass: { min: 98.00, max: 261.63, label: 'Bass (G2-C4)' },
+  //       tenor: { min: 130.81, max: 349.23, label: 'Tenor (C3-F4)' },
+  //       alto: { min: 164.81, max: 392.00, label: 'Alto (E3-G4)' },
+  //     soprano: { min: 196.00, max: 523.25, label: 'Soprano (G3-C5)' }
+  // };
   
   // Handle the master control button click
   const handleMasterControlClick = () => {
@@ -46,7 +47,7 @@ const DroneChoirPerformer = () => {
   
   // Handle unison start button click
   const handleUnisonStart = () => {
-    startUnison(voiceRanges, voiceModuleRefs, initSharedAudioContext, setIsAllPlaying);
+    startUnison(VOICE_RANGES, voiceModuleRefs, initSharedAudioContext, setIsAllPlaying);
   };
 
   return (
@@ -67,7 +68,7 @@ const DroneChoirPerformer = () => {
       </div>
       
       <div className="voice-modules-grid">
-        {Object.entries(voiceRanges).map(([voiceType, range]) => (
+        {Object.entries(VOICE_RANGES).map(([voiceType, range]) => (
           <VoiceModule 
             key={voiceType}
             voiceType={voiceType} 
