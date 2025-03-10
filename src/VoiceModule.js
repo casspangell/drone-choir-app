@@ -124,6 +124,14 @@ const VoiceModule = forwardRef(({ voiceType, onPlayStateChange, sharedAudioConte
   const handleContainerClick = () => {
     const newSelectedState = !isSelected;
     setIsSelected(newSelectedState);
+    
+    // Trigger the solo toggle
+    const newSoloState = !isSolo;
+    setIsSolo(newSoloState);
+    
+    if (onSoloToggle) {
+      onSoloToggle(voiceType, newSoloState);
+    }
   };
   
   // Initialize audio context
