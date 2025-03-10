@@ -17,6 +17,7 @@ const DroneChoirPerformer = () => {
   // State for controlling all modules
   const [isAllPlaying, setIsAllPlaying] = useState(false);
   const [soloVoice, setSoloVoice] = useState(null);
+  const [isSolo, setIsSolo] = useState(false);
   
   // Create refs to access the voice module methods
   const voiceModuleRefs = {
@@ -38,18 +39,46 @@ const DroneChoirPerformer = () => {
     }
     return sharedAudioContext;
   }, [sharedAudioContext]);
-  
 
-  const handleSoloToggle = useCallback((voiceType, isSolo) => {
-    console.log('Solo toggle called:', { voiceType, isSolo });
-    
-    if (isSolo) {
-      setSoloVoice(voiceType);
-      
-    } else {
+  const handleVoiceSelection = (voiceType) => {
+    if (soloVoice === voiceType) {
+      // Deselect if the same voice is clicked again
       setSoloVoice(null);
+
+      // ✅ Deselect all voice modules
+      Object.values(voiceModuleRefs).forEach(ref => {
+        if (ref.current) {
+          ref.current.setIsSolo(false);
+          ref.current.setIsSelected(false);  // Explicitly unselect
+        }
+      });
+
+    } else {
+      // Select the new voice
+      setSoloVoice(voiceType);
+
+      // ✅ Ensure only the selected voice is active
+      Object.entries(voiceModuleRefs).forEach(([refVoiceType, ref]) => {
+        if (ref.current) {
+          const isSelected = refVoiceType === voiceType;
+          ref.current.setIsSolo(isSelected);
+          ref.current.setIsSelected(isSelected);  // Ensure UI reflects selection
+        }
+      });
     }
-  }, []);
+  };
+
+  
+  // Handle solo toggle
+  // const handleSoloToggle = useCallback((voiceType, isSolo) => {
+  //   if (isSolo) {
+  //     console.log("Soloing voice ", voiceType);
+  //     setSoloVoice(voiceType);
+  //   } else {
+  //     // If turning off solo, clear the solo voice
+  //     setSoloVoice(null);
+  //   }
+  // }, []);
   
   // Handle the master control button click
   const handleMasterControlClick = useCallback(() => {
@@ -123,6 +152,7 @@ const DroneChoirPerformer = () => {
             key={voiceType}
             voiceType={voiceType} 
             voiceRange={range}
+            isSelected={soloVoice === voiceType}
             ref={voiceModuleRefs[voiceType]}
             sharedAudioContext={sharedAudioContext}
             onPlayStateChange={(isPlaying) => {
@@ -137,9 +167,10 @@ const DroneChoirPerformer = () => {
                 }
               }
             }}
-            onSoloToggle={handleSoloToggle}
+            onSoloToggle={handleVoiceSelection}
             isSoloMode={soloVoice !== null}
             isCurrentSolo={soloVoice === voiceType}
+            soloVoice={soloVoice}
           />
         ))}
       </div>

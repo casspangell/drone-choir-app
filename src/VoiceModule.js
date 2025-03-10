@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, forwardRef, useImperativeHandle } f
 import { VOICE_RANGES, generateRandomNote, getNoteName } from './voiceTypes';
 import './VoiceModule.css';
 
-const VoiceModule = forwardRef(({ voiceType, onPlayStateChange, sharedAudioContext, onSoloToggle, isSoloMode, isCurrentSolo  }, ref) => {
+const VoiceModule = forwardRef(({ voiceType, onPlayStateChange, sharedAudioContext, onSoloToggle, isSoloMode, isCurrentSolo, soloVoice }, ref) => {
   // State variables
   const [currentNote, setCurrentNote] = useState(null);
   const [nextNote, setNextNote] = useState(null);
@@ -27,6 +27,11 @@ const VoiceModule = forwardRef(({ voiceType, onPlayStateChange, sharedAudioConte
   const animationFrameRef = useRef(null);
   const autoGenIntervalRef = useRef(null);
   const audioContextRef = useRef(null);
+
+  useEffect(() => {
+    setIsSolo(soloVoice === voiceType);
+    setIsSelected(soloVoice === voiceType);
+  }, [soloVoice, voiceType]);
 
   // To manage periodic queue checking
   useEffect(() => {
@@ -67,6 +72,8 @@ const VoiceModule = forwardRef(({ voiceType, onPlayStateChange, sharedAudioConte
   
   // Expose methods to parent component via ref
   useImperativeHandle(ref, () => ({
+    setIsSolo,
+    setIsSelected,
     startPerformance: (providedContext = null) => {
       if (providedContext && !audioContext) {
         setAudioContext(providedContext);
@@ -722,15 +729,6 @@ const adjustVolumeForSolo = (soloVolume) => {
       <div className="control-panel">
         <div className="voice-selector">
           <div className="voice-type-label">{voiceRange.label}</div>
-        </div>
-        
-        <div className="control-buttons">
-          <button
-            onClick={isPlaying ? stopPerformance : startPerformance}
-            className={`control-button ${isPlaying ? 'stop' : 'start'}`}
-          >
-            {isPlaying ? 'Stop Performance' : 'Start Performance'}
-          </button>
         </div>
         
         <div className="auto-generate">
