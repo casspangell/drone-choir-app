@@ -665,7 +665,6 @@ const adjustVolumeForSolo = (soloVolume) => {
     };
     
     const isOnPitch = () => {
-      // In a real app, this would compare the performed pitch with the target
       return true;
     };
     
@@ -674,6 +673,27 @@ const adjustVolumeForSolo = (soloVolume) => {
         <div 
           className="pitch-indicator-bar"
           style={getIndicatorStyle()}
+        ></div>
+      </div>
+    );
+  };
+
+  const renderGainMeter = () => {
+    const getGainMeterStyle = () => {
+      const amplitude = visualData.amplitude;
+      return {
+        height: `${Math.min(100, amplitude * 100)}%`,
+        backgroundColor: 'rgb(250, 100, 100)',
+        transformOrigin: 'bottom',
+        transform: 'scaleY(1)'
+      };
+    };
+    
+    return (
+      <div className="gain-meter">
+        <div 
+          className="gain-meter-bar"
+          style={getGainMeterStyle()}
         ></div>
       </div>
     );
@@ -796,6 +816,7 @@ const adjustVolumeForSolo = (soloVolume) => {
           <canvas ref={canvasRef} className="waveform-canvas" />
         </div>
         {renderPitchIndicator()}
+        {renderGainMeter()}
       </div>
     </div>
   );

@@ -17,6 +17,21 @@
   margin-bottom: 15px;
 }
 
+.gain-meter {
+  width: 20px;
+  margin-left: 20px;
+    display: flex;
+  align-items: flex-end;
+}
+
+.gain-meter-bar {
+  width: 100%;
+  height: 150px;
+  background-color: #4a5568;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
 .solo-button {
   padding: 10px 15px;
   border: none;
