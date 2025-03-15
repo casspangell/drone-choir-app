@@ -364,12 +364,21 @@ const VoiceModule = forwardRef(({ voiceType, onPlayStateChange, sharedAudioConte
       duration: note.duration.toFixed(2)
     })));
     
-    // Add this: Send queue update to server
+    //send queue to server
     fetch(`http://localhost:8080/api/voice/${voiceType}/notes`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ notes: updatedQueue })
-    }).catch(error => {
+    })
+    .then(response => {
+      console.log(`${voiceType} queue sent to server:`, updatedQueue.map(note => ({
+        note: note.note,
+        frequency: note.frequency.toFixed(2),
+        duration: note.duration.toFixed(2)
+      })));
+      return response.json();
+    })
+    .catch(error => {
       console.error(`Error sending ${voiceType} queue to server:`, error);
     });
   };

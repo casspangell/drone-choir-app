@@ -7,6 +7,12 @@ const app = express();
 const server = http.createServer(app);
 const wss = new WebSocket.Server({ server });
 
+// Start the server
+const PORT = 8080;
+server.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
+});
+
 // Enable CORS
 app.use(cors());
 app.use(express.json());
@@ -190,8 +196,37 @@ app.post('/api/voice/:voiceType/notes', (req, res) => {
   }
 });
 
-// Start the server
-const PORT = 8080;
-server.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+
+
+// GET endpoint to retrieve alto state
+app.get('/api/voice/alto', (req, res) => {
+  console.log('GET request received for alto state');
+  res.json(voiceStates.alto);
+});
+
+// POST endpoint to update alto state
+app.post('/api/voice/alto/state', (req, res) => {
+  console.log('POST request received for alto state:', req.body);
+  const { isPlaying } = req.body;
+  
+  voiceStates.alto = {
+    ...voiceStates.alto,
+    isPlaying,
+    lastUpdated: Date.now()
+  };
+  
+  res.json({ success: true, state: voiceStates.alto });
+});
+
+// POST endpoint to update alto notes
+app.post('/api/voice/alto/notes', (req, res) => {
+  console.log('POST request received for alto notes:', req.body);
+  const { notes } = req.body;
+  
+  if (Array.isArray(notes)) {
+    voiceStates.alto.noteQueue = notes;
+    voiceStates.alto.lastUpdated = Date.now();
+  }
+  
+  res.json({ success: true, state: voiceStates.alto });
 });
