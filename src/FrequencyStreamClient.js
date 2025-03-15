@@ -83,30 +83,35 @@ class FrequencyStreamClient {
 
     // Handle incoming WebSocket messages
     handleMessage(event) {
-        try {
-            const data = JSON.parse(event.data);
-            
-            switch(data.type) {
-                case 'FREQUENCY_CONFIG':
-                case 'FREQUENCY_LIST':
-                    this.frequencies = data.frequencies;
-                    console.log('Received frequency configuration:', this.frequencies);
-                    break;
-                case 'STREAM_STARTED':
-                    this.startLocalFrequencyPlayback(data.frequency);
-                    break;
-                case 'STREAM_STOPPED':
-                    this.stopLocalFrequencyPlayback(data.frequencyId);
-                    break;
-                case 'ERROR':
-                    console.error('Streaming error:', data.message);
-                    break;
-                default:
-                    console.warn('Unhandled message type:', data.type);
-            }
-        } catch (error) {
-            console.error('Error processing message:', error);
+      try {
+        const data = JSON.parse(event.data);
+        
+        switch(data.type) {
+          case 'FREQUENCY_CONFIG':
+          case 'FREQUENCY_LIST':
+            this.frequencies = data.frequencies;
+            console.log('Received frequency configuration:', this.frequencies);
+            break;
+          case 'STREAM_STARTED':
+            this.startLocalFrequencyPlayback(data.frequency);
+            break;
+          case 'STREAM_STOPPED':
+            this.stopLocalFrequencyPlayback(data.frequencyId);
+            break;
+          // Add this new case
+          case 'NOTES_UPDATE':
+            console.log(`Received notes update for ${data.voiceType}:`, data.notes);
+            // You can add additional processing here if needed
+            break;
+          case 'ERROR':
+            console.error('Streaming error:', data.message);
+            break;
+          default:
+            console.warn('Unhandled message type:', data.type);
         }
+      } catch (error) {
+        console.error('Error processing message:', error);
+      }
     }
 
     // WebSocket connection closed

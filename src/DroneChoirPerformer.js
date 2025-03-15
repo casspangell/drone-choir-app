@@ -100,12 +100,26 @@ const DroneChoirPerformer = () => {
   
   // Handle unison start button click
   const handleUnisonStart = useCallback(() => {
-    // Start streaming for each voice type on the unison pitch
+    // Common pitch for unison
+    const commonPitch = 220; // A3
+    const noteName = 'A3';
+    
+    // Call the unison API endpoint
+    fetch('http://localhost:8080/api/unison', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        pitch: commonPitch,
+        note: noteName,
+        duration: 10
+      })
+    }).catch(error => console.error('Error setting unison:', error));
+    
+    // Continue with existing logic
     Object.values(VOICE_RANGES).forEach(voiceConfig => {
       startFrequencyStream(voiceConfig.id);
     });
     
-    // Start unison performance
     startUnison(voiceModuleRefs, initSharedAudioContext, setIsAllPlaying);
   }, [startFrequencyStream, initSharedAudioContext, voiceModuleRefs]);
 

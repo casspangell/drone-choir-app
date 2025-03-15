@@ -20,9 +20,11 @@ const startUnison = (voiceModuleRefs, initSharedAudioContext, setIsAllPlaying) =
   };
   
   // Clear existing queues in all voice modules and add the common note
-  Object.values(voiceModuleRefs).forEach(ref => {
+  Object.entries(voiceModuleRefs).forEach(([voiceType, ref]) => {
     if (ref.current) {
+      // First clear the queue
       ref.current.clearQueue();
+      // Then add the common note
       ref.current.addSpecificNote(commonNote);
     }
   });

@@ -99,7 +99,44 @@ const VoiceModule = forwardRef(({ voiceType, onPlayStateChange, sharedAudioConte
     addSpecificNote: (note) => {
       updateAudioQueue([note]);
       console.log(`${voiceType} added specific note: ${note.note} (${note.frequency.toFixed(2)} Hz)`);
+      
+      // Add this - send update to server
+      fetch(`http://localhost:8080/api/voice/${voiceType}/notes`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ notes: [note] })
+      }).catch(error => {
+        console.error(`Error updating ${voiceType} notes on server:`, error);
+      });
     },
+    clearQueue: () => {
+    updateAudioQueue([]);
+    console.log(`${voiceType} queue cleared`);
+    
+    // Add this - send empty queue to server
+    fetch(`http://localhost:8080/api/voice/${voiceType}/notes`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ notes: [] })
+    }).catch(error => {
+      console.error(`Error updating ${voiceType} notes on server:`, error);
+    });
+  },
+  
+  addSpecificNote: (note) => {
+    const newQueue = [...audioQueueRef.current, note];
+    updateAudioQueue(newQueue);
+    console.log(`${voiceType} added specific note: ${note.note} (${note.frequency.toFixed(2)} Hz)`);
+    
+    // Add this - send updated queue to server
+    fetch(`http://localhost:8080/api/voice/${voiceType}/notes`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ notes: newQueue })
+    }).catch(error => {
+      console.error(`Error updating ${voiceType} notes on server:`, error);
+    });
+  },
     get isPlaying() {
       return isPlayingRef.current;
     },
@@ -305,6 +342,7 @@ const VoiceModule = forwardRef(({ voiceType, onPlayStateChange, sharedAudioConte
     playNote(nextNoteToPlay);
   };
 
+
   const updateAudioQueue = (newQueue) => {
     let updatedQueue;
     if (typeof newQueue === 'function') {
@@ -320,7 +358,20 @@ const VoiceModule = forwardRef(({ voiceType, onPlayStateChange, sharedAudioConte
     audioQueueRef.current = updatedQueue;
     setAudioQueue(updatedQueue);
     
-    console.log(`${voiceType} queue updated:`, updatedQueue);
+    console.log(`DASHBOARD ${voiceType} queue updated:`, updatedQueue.map(note => ({
+      note: note.note,
+      frequency: note.frequency.toFixed(2),
+      duration: note.duration.toFixed(2)
+    })));
+    
+    // Add this: Send queue update to server
+    fetch(`http://localhost:8080/api/voice/${voiceType}/notes`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ notes: updatedQueue })
+    }).catch(error => {
+      console.error(`Error sending ${voiceType} queue to server:`, error);
+    });
   };
   
     // Modify playNote to use the consistent audio context
@@ -647,6 +698,15 @@ const adjustVolumeForSolo = (soloVolume) => {
     const newNote = generateRandomNote(voiceRange);
     updateAudioQueue(prevQueue => {
       const updatedQueue = [...prevQueue, newNote];
+      
+      // Add this - send updated queue to server
+      fetch(`http://localhost:8080/api/voice/${voiceType}/notes`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ notes: updatedQueue })
+      }).catch(error => {
+        console.error(`Error updating ${voiceType} notes on server:`, error);
+      });
       
       // If nothing is playing, start playing the new note
       if (isPlayingRef.current && !oscillatorRef.current) {
