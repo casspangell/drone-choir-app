@@ -2,7 +2,25 @@ import React, { useState, useEffect, useRef, forwardRef, useImperativeHandle } f
 import { VOICE_RANGES, generateRandomNote, getNoteName } from './voiceTypes';
 import './VoiceModule.css';
 
-const VoiceModule = forwardRef(({ voiceType, onPlayStateChange, sharedAudioContext, onSoloToggle, isSoloMode, isCurrentSolo, soloVoice }, ref) => {
+const VoiceModule = forwardRef(({ 
+  voiceType, 
+  voiceRange = VOICE_RANGES[voiceType] || {}, // Default fallback
+  onPlayStateChange, 
+  sharedAudioContext, 
+  onSoloToggle, 
+  isSoloMode, 
+  isCurrentSolo, 
+  soloVoice,
+  onNoteQueueUpdate 
+}, ref) => {
+  // Ensure voiceRange is valid
+  const safeVoiceRange = voiceRange || VOICE_RANGES[voiceType] || {
+    min: 220,
+    max: 440,
+    label: voiceType ? `${voiceType.charAt(0).toUpperCase() + voiceType.slice(1)}` : 'Voice',
+    id: 1
+  };
+
   // State variables
   const [currentNote, setCurrentNote] = useState(null);
   const [nextNote, setNextNote] = useState(null);
@@ -13,7 +31,6 @@ const VoiceModule = forwardRef(({ voiceType, onPlayStateChange, sharedAudioConte
   const [autoGenerate, setAutoGenerate] = useState(false);
   const [audioQueue, setAudioQueue] = useState([]);
   const [streamClient, setStreamClient] = useState(null);
-  const voiceRange = VOICE_RANGES[voiceType];
   const [isSolo, setIsSolo] = useState(false);
   const [isSelected, setIsSelected] = useState(false);
   
@@ -97,46 +114,10 @@ const VoiceModule = forwardRef(({ voiceType, onPlayStateChange, sharedAudioConte
       console.log(`${voiceType} queue cleared`);
     },
     addSpecificNote: (note) => {
-      updateAudioQueue([note]);
+      const newQueue = [...audioQueueRef.current, note];
+      updateAudioQueue(newQueue);
       console.log(`${voiceType} added specific note: ${note.note} (${note.frequency.toFixed(2)} Hz)`);
-      
-      // Add this - send update to server
-      fetch(`http://localhost:8080/api/voice/${voiceType}/notes`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ notes: [note] })
-      }).catch(error => {
-        console.error(`Error updating ${voiceType} notes on server:`, error);
-      });
     },
-    clearQueue: () => {
-    updateAudioQueue([]);
-    console.log(`${voiceType} queue cleared`);
-    
-    // Add this - send empty queue to server
-    fetch(`http://localhost:8080/api/voice/${voiceType}/notes`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ notes: [] })
-    }).catch(error => {
-      console.error(`Error updating ${voiceType} notes on server:`, error);
-    });
-  },
-  
-  addSpecificNote: (note) => {
-    const newQueue = [...audioQueueRef.current, note];
-    updateAudioQueue(newQueue);
-    console.log(`${voiceType} added specific note: ${note.note} (${note.frequency.toFixed(2)} Hz)`);
-    
-    // Add this - send updated queue to server
-    fetch(`http://localhost:8080/api/voice/${voiceType}/notes`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ notes: newQueue })
-    }).catch(error => {
-      console.error(`Error updating ${voiceType} notes on server:`, error);
-    });
-  },
     get isPlaying() {
       return isPlayingRef.current;
     },
@@ -155,9 +136,6 @@ const VoiceModule = forwardRef(({ voiceType, onPlayStateChange, sharedAudioConte
     },
     adjustVolume: (soloVolume) => {
       adjustVolumeForSolo(soloVolume);
-    },
-    get isSolo() {
-      return isSolo;
     },
     get isSelected() {
       return isSelected;
@@ -218,29 +196,12 @@ const VoiceModule = forwardRef(({ voiceType, onPlayStateChange, sharedAudioConte
   
   // Generate a random frequency within the voice range
   const generateRandomFrequency = () => {
-    return Math.random() * (voiceRange.max - voiceRange.min) + voiceRange.min;
+    return Math.random() * (safeVoiceRange.max - safeVoiceRange.min) + safeVoiceRange.min;
   };
   
   // Generate a random duration between 3 and 8 seconds
   const generateRandomDuration = () => {
     return Math.random() * 5 + 3; // 3 to 8 seconds
-  };
-  
-  // Generate a note name from a frequency (simplified)
-  const getNoteName = (frequency) => {
-    // This is a simplified mapping that doesn't account for exact frequencies
-    const noteNames = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
-    const A4 = 440.0;
-    const A4Index = 9; // Index of A in noteNames
-    
-    // Calculate how many half steps away from A4
-    const halfStepsFromA4 = Math.round(12 * Math.log2(frequency / A4));
-    
-    // Calculate octave and note
-    const octave = Math.floor((halfStepsFromA4 + A4Index) / 12) + 4;
-    const noteIndex = (((halfStepsFromA4 + A4Index) % 12) + 12) % 12;
-    
-    return noteNames[noteIndex] + octave;
   };
   
   // Generate a new note
@@ -282,18 +243,18 @@ const VoiceModule = forwardRef(({ voiceType, onPlayStateChange, sharedAudioConte
       });
     }, 5000);
 
-      setAutoGenerate(true);
-    };
+    setAutoGenerate(true);
+  };
+  
+  // Stop auto generation
+  const stopAutoGeneration = () => {
+    if (autoGenIntervalRef.current) {
+      clearInterval(autoGenIntervalRef.current);
+      autoGenIntervalRef.current = null;
+    }
     
-    // Stop auto generation
-    const stopAutoGeneration = () => {
-      if (autoGenIntervalRef.current) {
-        clearInterval(autoGenIntervalRef.current);
-        autoGenIntervalRef.current = null;
-      }
-      
-      setAutoGenerate(false);
-    };
+    setAutoGenerate(false);
+  };
   
   // Play the next note in the queue
   const playNextInQueue = () => {
@@ -304,7 +265,7 @@ const VoiceModule = forwardRef(({ voiceType, onPlayStateChange, sharedAudioConte
       
       if (autoGenerate && isPlayingRef.current) {
         console.log(`${voiceType} auto-generate is on, generating a new note`);
-        const newNote = generateRandomNote(voiceRange);
+        const newNote = generateNewNote();
         
         updateAudioQueue([newNote]);
         
@@ -342,7 +303,6 @@ const VoiceModule = forwardRef(({ voiceType, onPlayStateChange, sharedAudioConte
     playNote(nextNoteToPlay);
   };
 
-
   const updateAudioQueue = (newQueue) => {
     let updatedQueue;
     if (typeof newQueue === 'function') {
@@ -364,7 +324,12 @@ const VoiceModule = forwardRef(({ voiceType, onPlayStateChange, sharedAudioConte
       duration: note.duration.toFixed(2)
     })));
     
-    //send queue to server
+    // Notify parent about the queue update
+    if (onNoteQueueUpdate) {
+      onNoteQueueUpdate(updatedQueue);
+    }
+    
+    // Keep legacy API call for compatibility
     fetch(`http://localhost:8080/api/voice/${voiceType}/notes`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -383,7 +348,7 @@ const VoiceModule = forwardRef(({ voiceType, onPlayStateChange, sharedAudioConte
     });
   };
   
-    // Modify playNote to use the consistent audio context
+  // Modify playNote to use the consistent audio context
   const playNote = (noteData) => {
     const ctx = audioContextRef.current;
     const gainMultiplier = (isSoloMode && !isCurrentSolo) ? 0 : 1;
@@ -433,7 +398,7 @@ const VoiceModule = forwardRef(({ voiceType, onPlayStateChange, sharedAudioConte
       
       // Precise gain control
       gainNode.gain.setValueAtTime(0, ctx.currentTime);
-      gainNode.gain.linearRampToValueAtTime(0.5, ctx.currentTime + 0.5);
+      gainNode.gain.linearRampToValueAtTime(0.5 * gainMultiplier, ctx.currentTime + 0.5);
       gainNode.gain.linearRampToValueAtTime(0, ctx.currentTime + noteData.duration);
       
       // Connect nodes with analyser
@@ -480,21 +445,21 @@ const VoiceModule = forwardRef(({ voiceType, onPlayStateChange, sharedAudioConte
     } catch (e) {
       console.error(`Error playing note in ${voiceType}:`, e);
     }
-};
+  };
 
-const adjustVolumeForSolo = (soloVolume) => {
-  if (gainNodeRef.current) {
-    try {
-      const ctx = audioContextRef.current;
-      if (ctx) {
-        // Immediately set the gain value
-        gainNodeRef.current.gain.setValueAtTime(soloVolume, ctx.currentTime);
+  const adjustVolumeForSolo = (soloVolume) => {
+    if (gainNodeRef.current) {
+      try {
+        const ctx = audioContextRef.current;
+        if (ctx) {
+          // Immediately set the gain value
+          gainNodeRef.current.gain.setValueAtTime(soloVolume, ctx.currentTime);
+        }
+      } catch (error) {
+        console.error(`Error adjusting volume for ${voiceType}:`, error);
       }
-    } catch (error) {
-      console.error(`Error adjusting volume for ${voiceType}:`, error);
     }
-  }
-};
+  };
   
   const startPerformance = (providedContext = null) => {
     console.log(`Starting performance for ${voiceType} - checking audio initialization`);
@@ -519,7 +484,7 @@ const adjustVolumeForSolo = (soloVolume) => {
     
     // Generate a note if queue is empty
     if (audioQueueRef.current.length === 0) {
-      const initialNote = generateRandomNote(voiceRange);
+      const initialNote = generateNewNote();
       updateAudioQueue([initialNote]);
     }
     
@@ -704,18 +669,9 @@ const adjustVolumeForSolo = (soloVolume) => {
   
   // Add a single note to the queue
   const addNoteToQueue = () => {
-    const newNote = generateRandomNote(voiceRange);
+    const newNote = generateNewNote();
     updateAudioQueue(prevQueue => {
       const updatedQueue = [...prevQueue, newNote];
-      
-      // Add this - send updated queue to server
-      fetch(`http://localhost:8080/api/voice/${voiceType}/notes`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ notes: updatedQueue })
-      }).catch(error => {
-        console.error(`Error updating ${voiceType} notes on server:`, error);
-      });
       
       // If nothing is playing, start playing the new note
       if (isPlayingRef.current && !oscillatorRef.current) {
@@ -792,12 +748,12 @@ const adjustVolumeForSolo = (soloVolume) => {
           {isSolo ? 'Unsolo' : 'Solo'}
         </button>
       </div>
-      <h2 className="voice-title">{voiceRange.label}</h2>
+      <h2 className="voice-title">{safeVoiceRange.label || `${voiceType.charAt(0).toUpperCase() + voiceType.slice(1)}`}</h2>
       
       {/* Performer controls */}
       <div className="control-panel">
         <div className="voice-selector">
-          <div className="voice-type-label">{voiceRange.label}</div>
+          <div className="voice-type-label">{safeVoiceRange.label || `${voiceType.charAt(0).toUpperCase() + voiceType.slice(1)}`}</div>
         </div>
         
         <div className="auto-generate">

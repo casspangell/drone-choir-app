@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useRef, useCallback, useEffect } from 'react';
 import './DroneChoirPerformer.css';
 import VoiceModule from './VoiceModule';
 import { startUnison, startAll, stopAll } from './performance';
@@ -11,7 +11,9 @@ const DroneChoirPerformer = () => {
     isConnected,
     error,
     startFrequencyStream,
-    stopAllStreams
+    stopAllStreams,
+    voiceStates,
+    updateNotes
   } = useFrequencyStreaming();
 
   // State for controlling all modules
@@ -40,6 +42,46 @@ const DroneChoirPerformer = () => {
     return sharedAudioContext;
   }, [sharedAudioContext]);
 
+  // Sync with server voice states
+  useEffect(() => {
+    if (Object.keys(voiceStates).length > 0) {
+      let anyPlaying = false;
+      
+      // Update each voice module with server state
+      Object.entries(voiceStates).forEach(([voiceType, state]) => {
+        const ref = voiceModuleRefs[voiceType];
+        if (ref && ref.current) {
+          // If the server says the voice is playing but our local state is not
+          if (state.isPlaying) {
+            anyPlaying = true;
+            
+            // If we have notes in the queue, update the module
+            if (state.noteQueue && state.noteQueue.length > 0) {
+              // First clear existing queue
+              ref.current.clearQueue();
+              
+              // Then add all notes from server
+              state.noteQueue.forEach(note => {
+                ref.current.addSpecificNote(note);
+              });
+              
+              // Start the voice if it's not already playing
+              if (!ref.current.isPlaying) {
+                ref.current.startPerformance(sharedAudioContext || initSharedAudioContext());
+              }
+            }
+          } else if (!state.isPlaying && ref.current.isPlaying) {
+            // If server says not playing but we are, stop
+            ref.current.stopPerformance();
+          }
+        }
+      });
+      
+      // Update master playing state
+      setIsAllPlaying(anyPlaying);
+    }
+  }, [voiceStates, initSharedAudioContext, sharedAudioContext]);
+
   const handleVoiceSelection = (voiceType) => {
     if (soloVoice === voiceType) {
       // Deselect if the same voice is clicked again
@@ -67,18 +109,6 @@ const DroneChoirPerformer = () => {
       });
     }
   };
-
-  
-  // Handle solo toggle
-  // const handleSoloToggle = useCallback((voiceType, isSolo) => {
-  //   if (isSolo) {
-  //     console.log("Soloing voice ", voiceType);
-  //     setSoloVoice(voiceType);
-  //   } else {
-  //     // If turning off solo, clear the solo voice
-  //     setSoloVoice(null);
-  //   }
-  // }, []);
   
   // Handle the master control button click
   const handleMasterControlClick = useCallback(() => {
@@ -96,7 +126,7 @@ const DroneChoirPerformer = () => {
       // Start all voice modules
       startAll(voiceModuleRefs, initSharedAudioContext, setIsAllPlaying);
     }
-  }, [isAllPlaying, startFrequencyStream, stopAllStreams, initSharedAudioContext, voiceModuleRefs]);
+  }, [isAllPlaying, startFrequencyStream, stopAllStreams, initSharedAudioContext]);
   
   // Handle unison start button click
   const handleUnisonStart = useCallback(() => {
@@ -121,7 +151,13 @@ const DroneChoirPerformer = () => {
     });
     
     startUnison(voiceModuleRefs, initSharedAudioContext, setIsAllPlaying);
-  }, [startFrequencyStream, initSharedAudioContext, voiceModuleRefs]);
+  }, [startFrequencyStream, initSharedAudioContext]);
+
+  // Handle note queue updates
+  const handleNoteQueueUpdate = useCallback((voiceType, notes) => {
+    // Update server with new notes
+    updateNotes(voiceType, notes);
+  }, [updateNotes]);
 
   return (
     <div className="drone-choir-multi">
@@ -185,6 +221,7 @@ const DroneChoirPerformer = () => {
             isSoloMode={soloVoice !== null}
             isCurrentSolo={soloVoice === voiceType}
             soloVoice={soloVoice}
+            onNoteQueueUpdate={(notes) => handleNoteQueueUpdate(voiceType, notes)}
           />
         ))}
       </div>

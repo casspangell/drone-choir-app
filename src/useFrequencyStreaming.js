@@ -7,8 +7,9 @@ const useFrequencyStreaming = (options = {}) => {
 
     // Streaming state
     const [isConnected, setIsConnected] = useState(false);
-    const [frequencies] = useState([]);
+    const [frequencies, setFrequencies] = useState([]);
     const [streamingFrequencies, setStreamingFrequencies] = useState([]);
+    const [voiceStates, setVoiceStates] = useState({});
     const [error, setError] = useState(null);
 
     // Memoized control methods
@@ -31,6 +32,12 @@ const useFrequencyStreaming = (options = {}) => {
             );
         }
     }, [streamingFrequencies]);
+
+    const updateNotes = useCallback((voiceType, notes) => {
+        if (clientRef.current) {
+            clientRef.current.updateNotes(voiceType, notes);
+        }
+    }, []);
 
     // Initialize streaming client on mount
     useEffect(() => {
@@ -68,12 +75,20 @@ const useFrequencyStreaming = (options = {}) => {
             );
         };
 
+        const handleVoiceStateUpdate = (voiceType, state) => {
+            setVoiceStates(prev => ({
+                ...prev,
+                [voiceType]: state
+            }));
+        };
+
         client
             .on('connect', handleConnect)
             .on('disconnect', handleDisconnect)
             .on('error', handleError)
             .on('streamStart', handleStreamStart)
             .on('streamStop', handleStreamStop)
+            .on('voiceStateUpdate', handleVoiceStateUpdate)
             .connect();
 
         // Cleanup on unmount
@@ -90,11 +105,13 @@ const useFrequencyStreaming = (options = {}) => {
         // Frequency information
         frequencies,
         streamingFrequencies,
+        voiceStates,
 
         // Control methods
         startFrequencyStream,
         stopFrequencyStream,
-        stopAllStreams
+        stopAllStreams,
+        updateNotes
     };
 };
 

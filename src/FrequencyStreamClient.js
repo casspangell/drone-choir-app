@@ -10,6 +10,7 @@ class FrequencyStreamClient {
         this.isConnected = false;
         this.connectionAttempts = 0;
         this.maxConnectionAttempts = 5;
+        this.voiceStates = {};
 
         this.frequencies = Object.values(VOICE_RANGES).map(voice => ({
           id: voice.id,
@@ -29,7 +30,9 @@ class FrequencyStreamClient {
             disconnect: [],
             error: [],
             streamStart: [],
-            streamStop: []
+            streamStop: [],
+            voiceStateUpdate: [],
+            notesUpdate: []
         };
     }
 
@@ -98,10 +101,14 @@ class FrequencyStreamClient {
           case 'STREAM_STOPPED':
             this.stopLocalFrequencyPlayback(data.frequencyId);
             break;
-          // Add this new case
           case 'NOTES_UPDATE':
             console.log(`Received notes update for ${data.voiceType}:`, data.notes);
-            // You can add additional processing here if needed
+            this.emit('notesUpdate', data.voiceType, data.notes);
+            break;
+          case 'VOICE_STATE_UPDATE':
+            console.log(`Received voice state update for ${data.voiceType}:`, data.state);
+            this.voiceStates[data.voiceType] = data.state;
+            this.emit('voiceStateUpdate', data.voiceType, data.state);
             break;
           case 'ERROR':
             console.error('Streaming error:', data.message);
@@ -165,6 +172,22 @@ class FrequencyStreamClient {
                 frequencyId
             }));
         }
+    }
+
+    // Update notes for a specific voice
+    updateNotes(voiceType, notes) {
+        if (this.socket && this.socket.readyState === WebSocket.OPEN) {
+            this.socket.send(JSON.stringify({
+                type: 'UPDATE_NOTES',
+                voiceType,
+                notes
+            }));
+        }
+    }
+
+    // Get the current state for a voice type
+    getVoiceState(voiceType) {
+        return this.voiceStates[voiceType] || null;
     }
 
     // Local frequency playback methods
