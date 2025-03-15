@@ -1,0 +1,70 @@
+/* File: src/VoicePage.css */
+
+.tenor-voice-page,
+.bass-voice-page,
+.alto-voice-page,
+.soprano-voice-page {
+  font-family: Arial, sans-serif;
+  max-width: 1000px;
+  margin: 0 auto;
+  padding: 20px;
+}
+
+header {
+  text-align: center;
+  margin-bottom: 30px;
+}
+
+header h1 {
+  margin: 0;
+  font-size: 28px;
+  color: #4a154b;
+}
+
+header p {
+  margin-top: 5px;
+  color: #666;
+}
+
+.voice-module-container {
+  margin-bottom: 30px;
+}
+
+.connection-status {
+  background-color: #f8f9fa;
+  padding: 15px;
+  border-radius: 8px;
+  text-align: center;
+  margin-top: 20px;
+}
+
+.connection-status p {
+  margin: 0;
+  font-weight: bold;
+}
+
+/* Main page voice module selection */
+.voice-module-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px;
+  justify-content: center;
+  margin-top: 30px;
+}
+
+.voice-link {
+  display: block;
+  padding: 20px;
+  background-color: #4a154b;
+  color: white;
+  text-decoration: none;
+  border-radius: 8px;
+  font-weight: bold;
+  min-width: 200px;
+  text-align: center;
+  transition: background-color 0.3s;
+}
+
+.voice-link:hover {
+  background-color: #611f69;
+}
