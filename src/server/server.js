@@ -33,6 +33,7 @@ console.log('Server starting, master reset to null');
 let connectedClients = [];
 let clientsMap = new Map(); // Maps instanceId to WebSocket object
 let masterInstanceId = null;
+let masterAssignmentTime = null; // Track when the first master was assigned
 
 // Shared state for all voice types
 const voiceStates = {
@@ -88,6 +89,29 @@ function getServerTimeInfo() {
   };
 }
 
+// Check and assign master if needed
+function assignMasterIfNeeded(instanceId) {
+  // If no master exists, assign this client as master
+  if (masterInstanceId === null) {
+    masterInstanceId = instanceId;
+    masterAssignmentTime = Date.now();
+    console.log(`First client ${instanceId} assigned as master at ${new Date(masterAssignmentTime).toISOString()}`);
+    return true; // This client was assigned as master
+  }
+  
+  return masterInstanceId === instanceId; // Return true if this client is already master
+}
+
+// Get current master status
+function getCurrentMasterStatus() {
+  return {
+    masterInstanceId,
+    assignedAt: masterAssignmentTime ? new Date(masterAssignmentTime).toISOString() : null,
+    clientCount: connectedClients.length,
+    connectedClients
+  };
+}
+
 // WebSocket connection handling
 wss.on('connection', (ws) => {
   console.log('Client connected to WebSocket');
@@ -123,6 +147,7 @@ wss.on('connection', (ws) => {
         const instanceId = data.instanceId;
         
         console.log(`Client registration received with ID: ${instanceId}`);
+        console.log(`Current master status:`, getCurrentMasterStatus());
         
         // Remove old entry if this client already had a tempId
         if (ws.tempId && ws.tempId !== instanceId) {
@@ -154,26 +179,18 @@ wss.on('connection', (ws) => {
           connectedClients.push(instanceId);
         }
         
-        // Assign master if none exists
-        if (masterInstanceId === null) {
-          masterInstanceId = instanceId;
-          console.log(`First client ${instanceId} assigned as master`);
-          
-          // Notify the new master
-          ws.send(JSON.stringify({
-            type: 'MASTER_CHANGED',
-            newMasterId: instanceId,
-            timing: getServerTimeInfo()
-          }));
-        } else {
-          // Let the client know who the master is
-          ws.send(JSON.stringify({
-            type: 'MASTER_CHANGED',
-            newMasterId: masterInstanceId,
-            timing: getServerTimeInfo()
-          }));
-        }
+        // Check if this client should be master (only if no master exists)
+        const isMaster = assignMasterIfNeeded(instanceId);
         
+        // Always notify the client of the current master status
+        ws.send(JSON.stringify({
+          type: 'MASTER_CHANGED',
+          newMasterId: masterInstanceId,
+          isMaster: masterInstanceId === instanceId,
+          timing: getServerTimeInfo()
+        }));
+        
+        console.log(`Notified ${instanceId} that master is ${masterInstanceId}`);
         return; // We've handled registration, no need to process further
       }
 
@@ -292,15 +309,20 @@ wss.on('connection', (ws) => {
         connectedClients = connectedClients.filter(id => id !== ws.instanceId);
         
         // Assign a new master if any clients remain
-        masterInstanceId = connectedClients.length > 0 ? connectedClients[0] : null;
-        console.log(`Master ${ws.instanceId} disconnected. New master: ${masterInstanceId}`);
-        
-        // Notify all clients about the new master
-        if (masterInstanceId) {
+        if (connectedClients.length > 0) {
+          masterInstanceId = connectedClients[0];
+          console.log(`Master ${ws.instanceId} disconnected. New master: ${masterInstanceId}`);
+          
+          // Notify all clients about the new master
           broadcastToAll({
             type: 'MASTER_CHANGED',
             newMasterId: masterInstanceId
           });
+        } else {
+          // No clients left, reset master
+          masterInstanceId = null;
+          masterAssignmentTime = null;
+          console.log('No clients connected, master reset to null');
         }
       } else {
         // Just remove from connected clients
@@ -313,6 +335,11 @@ wss.on('connection', (ws) => {
   });
 });
 
+// API endpoint to provide master status for diagnostics
+app.get('/api/master/status', (req, res) => {
+  res.json(getCurrentMasterStatus());
+});
+
 // Endpoint to check and set master status
 app.post('/api/master/check', (req, res) => {
   const { instanceId } = req.body;
@@ -321,21 +348,22 @@ app.post('/api/master/check', (req, res) => {
     return res.status(400).json({ error: 'No instance ID provided' });
   }
   
-  // Assign first client as master if no master exists
-  if (masterInstanceId === null) {
-    masterInstanceId = instanceId;
-    console.log(`First client ${instanceId} assigned as master`);
-    
-    // Add to connected clients if not already there
-    if (!connectedClients.includes(instanceId)) {
-      connectedClients.push(instanceId);
-    }
+  // Check if this client should be master
+  const isMaster = assignMasterIfNeeded(instanceId);
+  
+  // Ensure client is in our tracking lists
+  if (!connectedClients.includes(instanceId)) {
+    connectedClients.push(instanceId);
   }
   
-  const isMaster = (masterInstanceId === instanceId);
   console.log(`Client ${instanceId} checking status: ${isMaster ? 'MASTER' : 'SLAVE'}`);
+  console.log(`Current master status:`, getCurrentMasterStatus());
   
-  res.json({ isMaster });
+  res.json({ 
+    isMaster,
+    masterInstanceId,
+    assignedAt: masterAssignmentTime ? new Date(masterAssignmentTime).toISOString() : null
+  });
 });
 
 // Endpoint to release master role (when a master disconnects)
@@ -345,15 +373,20 @@ app.post('/api/master/release', (req, res) => {
   if (instanceId && instanceId === masterInstanceId) {
     // This was the master, so release the role
     connectedClients = connectedClients.filter(id => id !== instanceId);
-    masterInstanceId = connectedClients.length > 0 ? connectedClients[0] : null;
-    console.log(`Master ${instanceId} released. New master: ${masterInstanceId}`);
     
-    // Notify all clients about the new master
-    if (masterInstanceId) {
+    if (connectedClients.length > 0) {
+      masterInstanceId = connectedClients[0];
+      console.log(`Master ${instanceId} released. New master: ${masterInstanceId}`);
+      
+      // Notify all clients about the new master
       broadcastToAll({
         type: 'MASTER_CHANGED',
         newMasterId: masterInstanceId
       });
+    } else {
+      masterInstanceId = null;
+      masterAssignmentTime = null;
+      console.log('Master role released and no clients connected, master reset to null');
     }
   } else {
     // Just remove from connected clients
@@ -364,12 +397,17 @@ app.post('/api/master/release', (req, res) => {
   clientsMap.delete(instanceId);
   console.log(`Client ${instanceId} disconnected. Total clients: ${connectedClients.length}`);
   
-  res.json({ success: true });
+  res.json({ 
+    success: true,
+    masterChanged: instanceId === masterInstanceId,
+    currentMaster: masterInstanceId
+  });
 });
 
 // Endpoint to reset master (for testing)
 app.post('/api/master/reset', (req, res) => {
   masterInstanceId = null;
+  masterAssignmentTime = null;
   console.log('Master reset to null');
   res.json({ success: true });
 });

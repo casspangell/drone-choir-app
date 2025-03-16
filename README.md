@@ -11,9 +11,6 @@ In the project directory, you can run:
 Runs the app in the development mode.\
 Open [http://localhost:3000](http://localhost:3000) to view it in your browser.
 
-The page will reload when you make changes.\
-You may also see any lint errors in the console.
-
 ### `npm test`
 
 Launches the test runner in the interactive watch mode.\
@@ -26,4 +23,7 @@ It correctly bundles React in production mode and optimizes the build for the be
 
 
 ### Manually Reset Master/Slave
-curl -X POST http://localhost:8080/api/master/reset
+`curl -X POST http://localhost:8080/api/master/reset`
+
+### Get Master Status
+`curl -X GET http://localhost:8080/api/master/status`
