@@ -349,7 +349,8 @@ const VoiceModule = forwardRef(({
     if (audioQueueRef.current.length === 0) {
       console.log(`${voiceType} queue is empty, checking auto-generate`);
       
-      if (autoGenerate && isPlayingRef.current) {
+      // Only auto-generate in non-viewer modes
+      if (autoGenerate && isPlayingRef.current && !isViewerMode && !isSingleMode) {
         console.log(`${voiceType} auto-generate is on, generating a new note`);
         const newNote = generateRandomNote(voiceRange);
         
@@ -363,7 +364,7 @@ const VoiceModule = forwardRef(({
           }
         }, 50);
       } else {
-        console.log(`${voiceType} no more notes and auto-generate is off`);
+        console.log(`${voiceType} no more notes and auto-generate is off or in viewer mode`);
         setCurrentNote(null);
         setNextNote(null);
       }
@@ -525,6 +526,9 @@ const adjustVolumeForSolo = (soloVolume) => {
     
     // Use provided context or the existing context
     const ctx = providedContext || audioContextRef.current;
+
+    // Prevent auto-generation in viewer mode
+    const shouldAutoGenerate = !isViewerMode && !isSingleMode;
     
     if (!ctx) {
       console.error(`Failed to initialize audio context for ${voiceType}`);
@@ -554,8 +558,8 @@ const adjustVolumeForSolo = (soloVolume) => {
       }
     }, 50);
     
-    // Start auto-generation if it's not already on
-    if (!autoGenerate) {
+    // Start auto-generation if it's not already on and allowed
+    if (shouldAutoGenerate && !autoGenerate) {
       startAutoGeneration();
     }
   };
