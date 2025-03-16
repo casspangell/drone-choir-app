@@ -26,6 +26,12 @@ const DroneChoirPerformer = () => {
     'low-mid': 'tenor',
     'low': 'bass'
   };
+
+  const getRangeLabel = (voiceType) => {
+    return Object.entries(voiceRangeMapping).find(
+      ([_, value]) => value === voiceType
+    )?.[0]?.toUpperCase() || 'VOICE';
+  };
   
   const handleSoloToggle = useCallback((voiceType, isSolo) => {
     console.log('Solo toggle called:', { voiceType, isSolo });
@@ -86,12 +92,15 @@ const DroneChoirPerformer = () => {
     
     return (
       <div className="drone-choir-single">
-        <h1>{range.label} Voice Module</h1>
+        <h1>
+          {Object.entries(voiceRangeMapping).find(([_, value]) => value === voiceType)?.[0]?.toUpperCase() || 'VOICE'} VOICE 
+        </h1>
         <div className="single-voice-container">
           <VoiceModule 
             key={voiceType}
             voiceType={voiceType} 
             voiceRange={range}
+            rangeLabel={getRangeLabel(voiceType)} 
             ref={voiceModuleRefs[voiceType]}
             onPlayStateChange={(isPlaying) => {
               // Check if any module is still playing when one stops
@@ -143,6 +152,7 @@ const DroneChoirPerformer = () => {
             key={voiceType}
             voiceType={voiceType} 
             voiceRange={range}
+            rangeLabel={getRangeLabel(voiceType)}
             ref={voiceModuleRefs[voiceType]}
             onPlayStateChange={(isPlaying) => {
               // Check if any module is still playing when one stops

@@ -356,6 +356,7 @@
 
 .drone-choir-single {
   font-family: Arial, sans-serif;
+  color: #ffffff;
   width: 100%;
   max-width: 800px;  /* Limit width for a single module */
   margin: 0 auto;
