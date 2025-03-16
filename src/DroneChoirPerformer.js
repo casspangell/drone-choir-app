@@ -19,6 +19,13 @@ const DroneChoirPerformer = () => {
     tenor: useRef(),
     bass: useRef()
   };
+
+  const voiceRangeMapping = {
+    'high': 'soprano',
+    'mid-high': 'alto',
+    'low-mid': 'tenor',
+    'low': 'bass'
+  };
   
   const handleSoloToggle = useCallback((voiceType, isSolo) => {
     console.log('Solo toggle called:', { voiceType, isSolo });
@@ -52,24 +59,25 @@ const DroneChoirPerformer = () => {
   };
 
   useEffect(() => {
-  // Check URL for voice type query parameter
-  const queryParams = new URLSearchParams(window.location.search);
-  const voiceTypes = Object.keys(VOICE_RANGES);
-  
-  console.log('URL search params:', window.location.search);
-  console.log('Parsed query params:', Object.fromEntries(queryParams));
-  
-  // Check for any voice type in the URL
-  for (const voiceType of voiceTypes) {
-    if (queryParams.has(voiceType)) {
-      console.log(`Single voice mode detected: ${voiceType}`);
-      setSingleVoiceMode(voiceType);
-      break;
+    // Check URL for voice range parameter
+    const queryParams = new URLSearchParams(window.location.search);
+    const rangeParams = Object.keys(voiceRangeMapping);
+    
+    console.log('URL search params:', window.location.search);
+    console.log('Parsed query params:', Object.fromEntries(queryParams));
+    
+    // Check for any range parameter in the URL
+    for (const rangeParam of rangeParams) {
+      if (queryParams.has(rangeParam)) {
+        const voiceType = voiceRangeMapping[rangeParam];
+        console.log(`Single voice mode detected: ${rangeParam} -> ${voiceType}`);
+        setSingleVoiceMode(voiceType);
+        break;
+      }
     }
-  }
-  
-  console.log('Voice types checked:', voiceTypes);
-}, []);
+    
+    console.log('Range params checked:', rangeParams);
+  }, []);
 
     if (singleVoiceMode && VOICE_RANGES[singleVoiceMode]) {
     console.log('Rendering single voice mode for:', singleVoiceMode);
