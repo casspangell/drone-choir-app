@@ -270,11 +270,21 @@ const VoiceModule = forwardRef(({
         console.log(`Resuming audio context for ${voiceType}`);
         audioContextRef.current.resume().then(() => {
           console.log(`Audio context resumed successfully for ${voiceType}`);
+          // Add class to container to indicate audio is enabled
+          const container = document.querySelector('.drone-choir-container');
+          if (container) {
+            container.classList.add('audio-enabled');
+          }
         }).catch(err => {
           console.error(`Failed to resume audio context for ${voiceType}:`, err);
         });
       } else {
         console.log(`Audio context is already running or not available for ${voiceType}`);
+        // Add class to container in case it's already running
+        const container = document.querySelector('.drone-choir-container');
+        if (container) {
+          container.classList.add('audio-enabled');
+        }
       }
     };
   
@@ -751,14 +761,19 @@ const adjustVolumeForSolo = (soloVolume) => {
 return (
   <div className={`drone-choir-container ${isSelected ? 'selected' : ''} ${isSingleMode ? 'single-mode' : ''}`} >
       
-      {isSingleMode && (
+  {isSingleMode && (
+    <div className="enable-audio-container">
       <button 
         className="enable-audio-button"
         onClick={resumeAudioContext}
       >
-        Enable Audio
+        ENABLE AUDIO
       </button>
-    )}
+      <div className="enable-instruction">
+        Click the button above to enable audio for this voice
+      </div>
+    </div>
+  )}
 
     <h2 className="voice-title">{voiceRange.label}</h2>
     

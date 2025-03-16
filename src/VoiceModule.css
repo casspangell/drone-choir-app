@@ -303,3 +303,62 @@
     display: block;
   }
 }
+
+/* Eye-catching audio enable button */
+.enable-audio-container {
+  margin: 15px 0;
+  text-align: center;
+  animation: pulse 2s infinite;
+}
+
+.enable-audio-button {
+  background: linear-gradient(145deg, #ff9800, #f44336);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  padding: 15px 25px;
+  font-weight: bold;
+  font-size: 1.2rem;
+  cursor: pointer;
+  width: 100%;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+  transition: all 0.3s ease;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 10px;
+}
+
+.enable-audio-button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.3);
+  background: linear-gradient(145deg, #ff7800, #e53935);
+}
+
+.enable-icon {
+  font-size: 1.4rem;
+}
+
+.enable-instruction {
+  margin-top: 8px;
+  color: white;
+  font-size: 0.9rem;
+  opacity: 0.9;
+}
+
+@keyframes pulse {
+  0% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.03);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+/* Hide the button after audio is enabled */
+.audio-enabled .enable-audio-container {
+  display: none;
+}

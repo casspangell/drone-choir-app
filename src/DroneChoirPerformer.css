@@ -1,10 +1,13 @@
 .drone-choir-multi {
   font-family: Arial, sans-serif;
   width: 100%;
-  max-width: 100%;
-  margin: 0 auto;
+  max-width: 1200px; /* Set a max-width to prevent stretching on wide screens */
+  margin: 0 auto; /* This centers the container */
   padding: 20px;
   box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
 }
 
 .voice-modules-grid {
@@ -12,6 +15,13 @@
   flex-wrap: nowrap;
   gap: 10px;
   width: 100%;
+  justify-content: center; /* Center the modules horizontally */
+}
+
+.voice-module-container {
+  flex: 1;
+  min-width: 0;
+  max-width: 350px; /* Prevent modules from becoming too wide */
 }
 
 .voice-module-container h1 {
@@ -19,6 +29,30 @@
   margin-bottom: 10px;
   font-size: 1.5rem;
   color: white;
+}
+
+h1.page-title {
+  text-align: center;
+  color: white;
+  margin-bottom: 20px;
+  width: 100%;
+}
+
+@media (max-width: 1200px) {
+  .voice-modules-grid {
+    flex-wrap: wrap;
+  }
+  
+  .voice-module-container {
+    flex-basis: calc(50% - 10px);
+  }
+}
+
+@media (max-width: 768px) {
+  .voice-module-container {
+    flex-basis: 100%;
+    max-width: 100%;
+  }
 }
 
 .drone-choir-container {
