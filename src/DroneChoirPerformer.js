@@ -3,16 +3,8 @@ import './DroneChoirPerformer.css';
 import VoiceModule from './VoiceModule';
 import { startUnison, startAll, stopAll } from './performance';
 import { VOICE_RANGES } from './voiceTypes';
-import useFrequencyStreaming from './useFrequencyStreaming';
 
 const DroneChoirPerformer = () => {
-  // Use the streaming hook
-  const {
-    isConnected,
-    error,
-    startFrequencyStream,
-    stopAllStreams
-  } = useFrequencyStreaming();
 
   // State for controlling all modules
   const [isAllPlaying, setIsAllPlaying] = useState(false);
@@ -26,20 +18,6 @@ const DroneChoirPerformer = () => {
     bass: useRef()
   };
   
-  // Create a shared audio context
-  const [sharedAudioContext, setSharedAudioContext] = useState(null);
-  
-  // Initialize shared audio context on first interaction
-  const initSharedAudioContext = useCallback(() => {
-    if (!sharedAudioContext) {
-      const newContext = new (window.AudioContext || window.webkitAudioContext)();
-      setSharedAudioContext(newContext);
-      return newContext;
-    }
-    return sharedAudioContext;
-  }, [sharedAudioContext]);
-  
-
   const handleSoloToggle = useCallback((voiceType, isSolo) => {
     console.log('Solo toggle called:', { voiceType, isSolo });
     
@@ -51,68 +29,50 @@ const DroneChoirPerformer = () => {
     }
   }, []);
   
-  // Handle the master control button click
-  const handleMasterControlClick = useCallback(() => {
-    if (isAllPlaying) {
-      // Stop all streaming frequencies
-      stopAllStreams();
-      // Stop all voice modules
-      stopAll(voiceModuleRefs, setIsAllPlaying);
-    } else {
-      // Start streaming for each voice type
-      Object.values(VOICE_RANGES).forEach(voiceConfig => {
-        startFrequencyStream(voiceConfig.id);
-      });
-      
-      // Start all voice modules
-      startAll(voiceModuleRefs, initSharedAudioContext, setIsAllPlaying);
-    }
-  }, [isAllPlaying, startFrequencyStream, stopAllStreams, initSharedAudioContext, voiceModuleRefs]);
+  // Initialize shared audio context for all voice modules
+  const initSharedAudioContext = () => {
+    return new (window.AudioContext || window.webkitAudioContext)();
+  };
   
-  // Handle unison start button click
-  const handleUnisonStart = useCallback(() => {
-    // Start streaming for each voice type on the unison pitch
-    Object.values(VOICE_RANGES).forEach(voiceConfig => {
-      startFrequencyStream(voiceConfig.id);
-    });
-    
-    // Start unison performance
+  // Handle start unison button click
+  const handleStartUnison = () => {
     startUnison(voiceModuleRefs, initSharedAudioContext, setIsAllPlaying);
-  }, [startFrequencyStream, initSharedAudioContext, voiceModuleRefs]);
+  };
+  
+  // Handle start all button click
+  const handleStartAll = () => {
+    startAll(voiceModuleRefs, initSharedAudioContext, setIsAllPlaying);
+  };
+  
+  // Handle stop all button click
+  const handleStopAll = () => {
+    stopAll(voiceModuleRefs, setIsAllPlaying);
+  };
 
   return (
     <div className="drone-choir-multi">
-      {/* Connection status and error handling */}
-      {error && (
-        <div className="connection-error">
-          <p>Streaming Error: {error.message || 'Connection failed'}</p>
-        </div>
-      )}
-
-      {/* Streaming connection status */}
-      <div className="connection-status">
-        <span 
-          className={`status-indicator ${isConnected ? 'connected' : 'disconnected'}`}
-        >
-          {isConnected ? 'Streaming: Connected' : 'Streaming: Disconnected'}
-        </span>
-      </div>
-
       {/* Master controls */}
       <div className="master-controls">
-        <button
-          onClick={handleUnisonStart}
-          className="master-control-button initial"
-          disabled={!isConnected}
+        <button 
+          className="master-control-button initial" 
+          onClick={handleStartUnison}
+          disabled={isAllPlaying}
         >
-          Start All on Same Pitch (10s)
+          Start on A Note (10s)
         </button>
-        <button
-          onClick={handleMasterControlClick}
-          className={`master-control-button ${isAllPlaying ? 'stop' : 'start'}`}
-          disabled={!isConnected}
+        <button 
+          className="master-control-button start" 
+          onClick={handleStartAll}
+          disabled={isAllPlaying}
         >
-          {isAllPlaying ? 'Stop All Voices' : 'Start All Voices'}
+          Start All Voices
+        </button>
+        <button 
+          className="master-control-button stop" 
+          onClick={handleStopAll}
+          disabled={!isAllPlaying}
+        >
+          Stop All Voices
         </button>
       </div>
       
@@ -124,7 +84,6 @@ const DroneChoirPerformer = () => {
             voiceType={voiceType} 
             voiceRange={range}
             ref={voiceModuleRefs[voiceType]}
-            sharedAudioContext={sharedAudioContext}
             onPlayStateChange={(isPlaying) => {
               // Check if any module is still playing when one stops
               if (!isPlaying) {

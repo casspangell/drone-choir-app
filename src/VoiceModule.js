@@ -485,16 +485,24 @@ const adjustVolumeForSolo = (soloVolume) => {
     }, 1000);
   };
   
-  // Stop the performance
+// Stop the performance
   const stopPerformance = () => {
     setIsPlaying(false);
     isPlayingRef.current = false;
     
-    if (oscillatorRef.current && audioContext) {
+    // Stop auto-generation
+    if (autoGenerate) {
+      stopAutoGeneration();
+    }
+    
+    // Clear the queue
+    updateAudioQueue([]);
+    
+    if (oscillatorRef.current && audioContextRef.current) {
       try {
-        const currentTime = audioContext.currentTime;
+        const currentTime = audioContextRef.current.currentTime;
         
-        // Fade out
+        // Fade out over 0.5 seconds
         if (gainNodeRef.current) {
           gainNodeRef.current.gain.setValueAtTime(
             gainNodeRef.current.gain.value, 
@@ -507,7 +515,13 @@ const adjustVolumeForSolo = (soloVolume) => {
         setTimeout(() => {
           if (oscillatorRef.current) {
             oscillatorRef.current.stop();
+            oscillatorRef.current.disconnect();
             oscillatorRef.current = null;
+          }
+          
+          if (gainNodeRef.current) {
+            gainNodeRef.current.disconnect();
+            gainNodeRef.current = null;
           }
           
           // Cancel animation frame
@@ -515,11 +529,19 @@ const adjustVolumeForSolo = (soloVolume) => {
             cancelAnimationFrame(animationFrameRef.current);
             animationFrameRef.current = null;
           }
+          
+          // Reset states
+          setCurrentNote(null);
+          setNextNote(null);
+          setCountdownTime(0);
+          
         }, 500);
       } catch (e) {
         console.error(`Error stopping performance in ${voiceType}:`, e);
       }
     }
+    
+    console.log(`${voiceType} performance stopped`);
   };
   
   // Set up waveform visualization
