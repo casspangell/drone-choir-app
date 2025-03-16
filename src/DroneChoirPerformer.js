@@ -121,17 +121,27 @@ const DroneChoirPerformer = () => {
     if (!state) return;
     
     if (viewMode === 'viewer') {
+      console.log('Applying received state as viewer, single voice mode:', singleVoiceMode);
+      
       // Update global state
       setIsAllPlaying(state.isPlaying);
       setSoloVoice(state.soloVoice);
       
       // Update individual voice modules
       Object.entries(state.voices || {}).forEach(([voiceType, voiceState]) => {
-        // Skip if we're in single voice mode and this isn't our voice
-        if (singleVoiceMode && voiceType !== singleVoiceMode) return;
+        console.log(`Processing voice state for ${voiceType}:`, 
+                    voiceState.isPlaying ? 'playing' : 'stopped', 
+                    voiceState.currentNote?.note);
         
-        // Even if global state is "stopped", process individual voice states
-        // This ensures we respect the actual state of each voice
+        // Skip if we're in single voice mode and this isn't our voice
+        if (singleVoiceMode && voiceType !== singleVoiceMode) {
+          console.log(`Skipping ${voiceType} as we're in ${singleVoiceMode} mode`);
+          return;
+        }
+        
+        console.log(`Applying state for ${voiceType} in single voice mode:`, singleVoiceMode);
+        
+        // Apply the voice state
         applyVoiceState(voiceType, voiceState);
       });
     }
