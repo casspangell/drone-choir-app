@@ -270,7 +270,7 @@ const DroneChoirPerformer = () => {
   };
   
   // If in single voice mode, render only that voice module
-  if (singleVoiceMode && VOICE_RANGES[singleVoiceMode]) {
+  if (VOICE_RANGES[singleVoiceMode]) {
     const voiceType = singleVoiceMode;
     const range = VOICE_RANGES[voiceType];
     const rangeLabel = getRangeLabel(voiceType);
@@ -340,38 +340,41 @@ const DroneChoirPerformer = () => {
         </button>
       </div>
       
-      {/* Voice modules grid */}
+     {/* Voice modules grid */}
       <div className="voice-modules-grid">
         {Object.entries(VOICE_RANGES).map(([voiceType, range]) => (
-          <VoiceModule 
-            key={voiceType}
-            voiceType={voiceType} 
-            voiceRange={range}
-            rangeLabel={getRangeLabel(voiceType)}
-            ref={voiceModuleRefs[voiceType]}
-            onPlayStateChange={(isPlaying) => {
-              // Only controller can change play state
-              if (viewMode !== 'controller') return;
-              
-              // Check if any module is still playing when one stops
-              if (!isPlaying) {
-                const anyStillPlaying = Object.values(voiceModuleRefs).some(
-                  ref => ref.current && ref.current.isPlaying
-                );
+          <div key={voiceType} className="voice-module-container">
+            <h1>{getRangeLabel(voiceType)} VOICE</h1>
+            <VoiceModule 
+              key={voiceType}
+              voiceType={voiceType} 
+              voiceRange={range}
+              rangeLabel={getRangeLabel(voiceType)}
+              ref={voiceModuleRefs[voiceType]}
+              onPlayStateChange={(isPlaying) => {
+                // Only controller can change play state
+                if (viewMode !== 'controller') return;
                 
-                if (!anyStillPlaying) {
-                  setIsAllPlaying(false);
+                // Check if any module is still playing when one stops
+                if (!isPlaying) {
+                  const anyStillPlaying = Object.values(voiceModuleRefs).some(
+                    ref => ref.current && ref.current.isPlaying
+                  );
+                  
+                  if (!anyStillPlaying) {
+                    setIsAllPlaying(false);
+                  }
                 }
-              }
-              
-              // Broadcast state after change
-              setTimeout(broadcastState, 100);
-            }}
-            onSoloToggle={handleSoloToggle}
-            isSoloMode={soloVoice !== null}
-            isCurrentSolo={soloVoice === voiceType}
-            isViewerMode={viewMode === 'viewer'}
-          />
+                
+                // Broadcast state after change
+                setTimeout(broadcastState, 100);
+              }}
+              onSoloToggle={handleSoloToggle}
+              isSoloMode={soloVoice !== null}
+              isCurrentSolo={soloVoice === voiceType}
+              isViewerMode={viewMode === 'viewer'}
+            />
+          </div>
         ))}
       </div>
     </div>

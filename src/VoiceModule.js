@@ -737,56 +737,35 @@ const adjustVolumeForSolo = (soloVolume) => {
   
 return (
   <div className={`drone-choir-container ${isSelected ? 'selected' : ''} ${isSingleMode ? 'single-mode' : ''}`} >
-    {isSingleMode && (
-      <div className="currently-playing">Currently Playing</div>
-    )}
+
     <h2 className="voice-title">{voiceRange.label}</h2>
     
-    {/* Enhanced visualization for single mode */}
-    {isSingleMode && (
-      <div className="single-mode-indicator">
-        <div className="single-note-heading">Currently Playing</div>
+    {/* Performer controls */}
+    {!isSingleMode && (
+      <div className="control-panel">
+        <div className="auto-generate">
+          <label>
+            <input 
+              type="checkbox" 
+              checked={autoGenerate} 
+              onChange={handleAutoGenerateToggle}
+              disabled={isViewerMode}
+            />
+            Auto-generate notes every 5 seconds
+          </label>
+        </div>
+        
+        <div className="queue-controls">
+          <button 
+            className="queue-button add" 
+            onClick={addNoteToQueue}
+            disabled={isViewerMode}
+          >
+            Add Random Note
+          </button>
+        </div>
       </div>
     )}
-    
-    {/* Performer controls */}
-    <div className="control-panel">
-      <div className="voice-selector">
-        <div className="voice-type-label">{voiceRange.label}</div>
-      </div>
-      
-      <div className="control-buttons">
-        <button
-          onClick={isPlaying ? stopPerformance : startPerformance}
-          className={`control-button ${isPlaying ? 'stop' : 'start'}`}
-          disabled={isViewerMode}
-        >
-          {isPlaying ? 'Stop Performance' : 'Start Performance'}
-        </button>
-      </div>
-      
-      <div className="auto-generate">
-        <label>
-          <input 
-            type="checkbox" 
-            checked={autoGenerate} 
-            onChange={handleAutoGenerateToggle}
-            disabled={isViewerMode}
-          />
-          Auto-generate notes every 5 seconds
-        </label>
-      </div>
-      
-      <div className="queue-controls">
-        <button 
-          className="queue-button add" 
-          onClick={addNoteToQueue}
-          disabled={isViewerMode}
-        >
-          Add Random Note
-        </button>
-      </div>
-    </div>
     
     {/* Current note display */}
     <div className="note-display">
