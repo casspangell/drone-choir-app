@@ -2,7 +2,16 @@ import React, { useState, useEffect, useRef, forwardRef, useImperativeHandle } f
 import { VOICE_RANGES, generateRandomNote, getNoteName } from './voiceTypes';
 import './VoiceModule.css';
 
-const VoiceModule = forwardRef(({ voiceType, onPlayStateChange, sharedAudioContext, onSoloToggle, isSoloMode, isCurrentSolo  }, ref) => {
+const VoiceModule = forwardRef(({ 
+  voiceType, 
+  onPlayStateChange, 
+  sharedAudioContext, 
+  onSoloToggle, 
+  isSoloMode, 
+  isCurrentSolo, 
+  isViewerMode = false,
+  isSingleMode = false
+}, ref) => {
   // State variables
   const [currentNote, setCurrentNote] = useState(null);
   const [nextNote, setNextNote] = useState(null);
@@ -81,6 +90,12 @@ const VoiceModule = forwardRef(({ voiceType, onPlayStateChange, sharedAudioConte
       } else {
         startPerformance();
       }
+    },
+    getCurrentNote: () => {
+      return currentNote;
+    },
+    getNextNote: () => {
+      return nextNote;
     },
     stopPerformance: () => {
       stopPerformance();
@@ -722,127 +737,142 @@ const adjustVolumeForSolo = (soloVolume) => {
     );
   };
   
-  return (
-    <div className={`drone-choir-container ${isSelected ? 'selected' : ''}`} onClick={handleContainerClick}>
-      <div className="module-controls">
+return (
+  <div className={`drone-choir-container ${isSelected ? 'selected' : ''} ${isSingleMode ? 'single-mode' : ''}`} 
+       onClick={!isViewerMode ? handleContainerClick : undefined}>
+    <div className="module-controls">
+      <button
+        onClick={() => {
+          const newSoloState = !isSolo;
+          setIsSolo(newSoloState);
+          
+          if (onSoloToggle) {
+            onSoloToggle(voiceType, newSoloState);
+          }
+        }}
+        className={`module-control-button solo-button ${isSolo ? 'active' : ''}`}
+        disabled={isViewerMode}
+      >
+        {isSolo ? 'Unsolo' : 'Solo'}
+      </button>
+    </div>
+    <h2 className="voice-title">{voiceRange.label}</h2>
+    
+    {/* Enhanced visualization for single mode */}
+    {isSingleMode && (
+      <div className="single-mode-indicator">
+        <div className="single-note-heading">Currently Playing</div>
+      </div>
+    )}
+    
+    {/* Performer controls */}
+    <div className="control-panel">
+      <div className="voice-selector">
+        <div className="voice-type-label">{voiceRange.label}</div>
+      </div>
+      
+      <div className="control-buttons">
         <button
-          onClick={() => {
-            const newSoloState = !isSolo;
-            setIsSolo(newSoloState);
-            
-            if (onSoloToggle) {
-              onSoloToggle(voiceType, newSoloState);
-            }
-          }}
-          className={`module-control-button solo-button ${isSolo ? 'active' : ''}`}
+          onClick={isPlaying ? stopPerformance : startPerformance}
+          className={`control-button ${isPlaying ? 'stop' : 'start'}`}
+          disabled={isViewerMode}
         >
-          {isSolo ? 'Unsolo' : 'Solo'}
+          {isPlaying ? 'Stop Performance' : 'Start Performance'}
         </button>
       </div>
-      <h2 className="voice-title">{voiceRange.label}</h2>
       
-      {/* Performer controls */}
-      <div className="control-panel">
-        <div className="voice-selector">
-          <div className="voice-type-label">{voiceRange.label}</div>
-        </div>
-        
-        <div className="control-buttons">
-          <button
-            onClick={isPlaying ? stopPerformance : startPerformance}
-            className={`control-button ${isPlaying ? 'stop' : 'start'}`}
-          >
-            {isPlaying ? 'Stop Performance' : 'Start Performance'}
-          </button>
-        </div>
-        
-        <div className="auto-generate">
-          <label>
-            <input 
-              type="checkbox" 
-              checked={autoGenerate} 
-              onChange={handleAutoGenerateToggle}
-            />
-            Auto-generate notes every 5 seconds
-          </label>
-        </div>
-        
-        <div className="queue-controls">
-          <button className="queue-button add" onClick={addNoteToQueue}>
-            Add Random Note
-          </button>
-        </div>
+      <div className="auto-generate">
+        <label>
+          <input 
+            type="checkbox" 
+            checked={autoGenerate} 
+            onChange={handleAutoGenerateToggle}
+            disabled={isViewerMode}
+          />
+          Auto-generate notes every 5 seconds
+        </label>
       </div>
       
-      {/* Current note display */}
-      <div className="note-display">
-        <h2 className="section-title">Current Note</h2>
-        
-        {currentNote ? (
-          <div className="note-info">
-            <div className="note-details">
-              <div className="note-name">{currentNote.note}</div>
-              <div className="note-frequency">{currentNote.frequency.toFixed(2)} Hz</div>
-            </div>
-            
-            <div className="countdown">
-              <div className="countdown-time">
-                {countdownTime}s
-              </div>
-              <div className="countdown-label">until next note</div>
-            </div>
-          </div>
-        ) : (
-          <div className="no-note">No note playing</div>
-        )}
-      </div>
-      
-      {/* Next note preview */}
-      {nextNote && (
-        <div className="note-display next-note">
-          <h2 className="section-title">Coming Next</h2>
-          <div className="note-info">
-            <div className="note-details">
-              <div className="note-name next">{nextNote.note}</div>
-              <div className="note-frequency">{nextNote.frequency.toFixed(2)} Hz</div>
-            </div>
-          </div>
-        </div>
-      )}
-      
-      {/* Queue display */}
-      <div className="queue-display">
-        <h2 className="section-title">Note Queue ({audioQueue.length})</h2>
-        <div className="queue-items">
-          {audioQueue.length === 0 ? (
-            <div className="empty-queue">Queue is empty</div>
-          ) : (
-            audioQueue.slice(0, 5).map((queueItem, index) => (
-              <div key={index} className="queue-item">
-                <span className="queue-note">{queueItem.note}</span>
-                <span className="queue-freq">{queueItem.frequency.toFixed(1)} Hz</span>
-                <span className="queue-duration">{queueItem.duration.toFixed(1)}s</span>
-              </div>
-            ))
-          )}
-          {audioQueue.length > 5 && (
-            <div className="queue-more">
-              +{audioQueue.length - 5} more notes in queue
-            </div>
-          )}
-        </div>
-      </div>
-      
-      {/* Visualization area */}
-      <div className="visualization-container">
-        <div className="waveform-container">
-          <canvas ref={canvasRef} className="waveform-canvas" />
-        </div>
-        {renderPitchIndicator()}
-        {renderGainMeter()}
+      <div className="queue-controls">
+        <button 
+          className="queue-button add" 
+          onClick={addNoteToQueue}
+          disabled={isViewerMode}
+        >
+          Add Random Note
+        </button>
       </div>
     </div>
-  );
+    
+    {/* Current note display */}
+    <div className="note-display">
+      <h2 className="section-title">Current Note</h2>
+      
+      {currentNote ? (
+        <div className="note-info">
+          <div className="note-details">
+            <div className={`note-name ${isSingleMode ? 'large-note' : ''}`}>{currentNote.note}</div>
+            <div className="note-frequency">{currentNote.frequency.toFixed(2)} Hz</div>
+          </div>
+          
+          <div className="countdown">
+            <div className="countdown-time">
+              {countdownTime}s
+            </div>
+            <div className="countdown-label">until next note</div>
+          </div>
+        </div>
+      ) : (
+        <div className="no-note">No note playing</div>
+      )}
+    </div>
+    
+    {/* Next note preview */}
+    {nextNote && (
+      <div className="note-display next-note">
+        <h2 className="section-title">Coming Next</h2>
+        <div className="note-info">
+          <div className="note-details">
+            <div className="note-name next">{nextNote.note}</div>
+            <div className="note-frequency">{nextNote.frequency.toFixed(2)} Hz</div>
+          </div>
+        </div>
+      </div>
+    )}
+    
+    {/* Queue display - conditionally show less detail in single mode */}
+    <div className="queue-display">
+      <h2 className="section-title">Note Queue ({audioQueue.length})</h2>
+      <div className="queue-items">
+        {audioQueue.length === 0 ? (
+          <div className="empty-queue">Queue is empty</div>
+        ) : (
+          audioQueue.slice(0, isSingleMode ? 3 : 5).map((queueItem, index) => (
+            <div key={index} className="queue-item">
+              <span className="queue-note">{queueItem.note}</span>
+              <span className="queue-freq">{queueItem.frequency.toFixed(1)} Hz</span>
+              <span className="queue-duration">{queueItem.duration.toFixed(1)}s</span>
+            </div>
+          ))
+        )}
+        {audioQueue.length > (isSingleMode ? 3 : 5) && (
+          <div className="queue-more">
+            +{audioQueue.length - (isSingleMode ? 3 : 5)} more notes in queue
+          </div>
+        )}
+      </div>
+    </div>
+    
+    {/* Visualization area - enhanced for single mode */}
+    <div className={`visualization-container ${isSingleMode ? 'enhanced-visualization' : ''}`}>
+      <div className="waveform-container">
+        <canvas ref={canvasRef} className="waveform-canvas" />
+      </div>
+      {renderPitchIndicator()}
+      {renderGainMeter()}
+    </div>
+  </div>
+);
 });
 
 export default VoiceModule;

@@ -3,12 +3,14 @@ import './DroneChoirPerformer.css';
 import VoiceModule from './VoiceModule';
 import { startUnison, startAll, stopAll } from './performance';
 import { VOICE_RANGES } from './voiceTypes';
+import { useEffect } from 'react';
 
 const DroneChoirPerformer = () => {
 
   // State for controlling all modules
   const [isAllPlaying, setIsAllPlaying] = useState(false);
   const [soloVoice, setSoloVoice] = useState(null);
+  const [singleVoiceMode, setSingleVoiceMode] = useState(null);
   
   // Create refs to access the voice module methods
   const voiceModuleRefs = {
@@ -48,6 +50,56 @@ const DroneChoirPerformer = () => {
   const handleStopAll = () => {
     stopAll(voiceModuleRefs, setIsAllPlaying);
   };
+
+  useEffect(() => {
+  // Check URL for voice type query parameter
+  const queryParams = new URLSearchParams(window.location.search);
+  const voiceTypes = Object.keys(VOICE_RANGES);
+  
+  console.log('URL search params:', window.location.search);
+  console.log('Parsed query params:', Object.fromEntries(queryParams));
+  
+  // Check for any voice type in the URL
+  for (const voiceType of voiceTypes) {
+    if (queryParams.has(voiceType)) {
+      console.log(`Single voice mode detected: ${voiceType}`);
+      setSingleVoiceMode(voiceType);
+      break;
+    }
+  }
+  
+  console.log('Voice types checked:', voiceTypes);
+}, []);
+
+    if (singleVoiceMode && VOICE_RANGES[singleVoiceMode]) {
+    console.log('Rendering single voice mode for:', singleVoiceMode);
+    const voiceType = singleVoiceMode;
+    const range = VOICE_RANGES[voiceType];
+    
+    return (
+      <div className="drone-choir-single">
+        <h1>{range.label} Voice Module</h1>
+        <div className="single-voice-container">
+          <VoiceModule 
+            key={voiceType}
+            voiceType={voiceType} 
+            voiceRange={range}
+            ref={voiceModuleRefs[voiceType]}
+            onPlayStateChange={(isPlaying) => {
+              // Check if any module is still playing when one stops
+              if (!isPlaying) {
+                setIsAllPlaying(false);
+              }
+            }}
+            onSoloToggle={handleSoloToggle}
+            isSoloMode={false}
+            isCurrentSolo={false}
+            isSingleMode={true}
+          />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="drone-choir-multi">
