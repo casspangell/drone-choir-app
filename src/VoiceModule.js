@@ -4,14 +4,15 @@ import './VoiceModule.css';
 
 const VoiceModule = forwardRef(({ 
   voiceType, 
-  voiceRange = VOICE_RANGES[voiceType] || {}, // Default fallback
+  voiceRange = VOICE_RANGES[voiceType] || {}, 
   onPlayStateChange, 
   sharedAudioContext, 
   onSoloToggle, 
   isSoloMode, 
   isCurrentSolo, 
   soloVoice,
-  onNoteQueueUpdate 
+  onNoteQueueUpdate,
+  isMasterMode = false // Default to slave mode for safety
 }, ref) => {
   // Ensure voiceRange is valid
   const safeVoiceRange = voiceRange || VOICE_RANGES[voiceType] || {
@@ -218,32 +219,38 @@ const VoiceModule = forwardRef(({
   
   // Auto-generate and add new notes to the queue
   const startAutoGeneration = () => {
-    // Clear any existing interval
-    if (autoGenIntervalRef.current) {
-      clearInterval(autoGenIntervalRef.current);
-    }
-    
-    // Generate initial note if queue is empty
-    if (audioQueueRef.current.length === 0) {
-      const initialNote = generateNewNote();
-      updateAudioQueue([initialNote]);
-    }
-    
-    // Start the interval for generating new notes
-    autoGenIntervalRef.current = setInterval(() => {
-      const newNote = generateNewNote();
-      console.log(`${voiceType} auto-generating new note: ${newNote.note}`);
+      // Only the master can auto-generate notes
+      if (!isMasterMode) {
+        console.log(`${voiceType} cannot auto-generate notes in slave mode`);
+        return;
+      }
       
-      updateAudioQueue(prevQueue => {
-        // Add the new note to the queue
-        const updatedQueue = [...prevQueue, newNote];
+      // Clear any existing interval
+      if (autoGenIntervalRef.current) {
+        clearInterval(autoGenIntervalRef.current);
+      }
+      
+      // Generate initial note if queue is empty
+      if (audioQueueRef.current.length === 0) {
+        const initialNote = generateNewNote();
+        updateAudioQueue([initialNote]);
+      }
+      
+      // Start the interval for generating new notes
+      autoGenIntervalRef.current = setInterval(() => {
+        const newNote = generateNewNote();
+        console.log(`${voiceType} auto-generating new note: ${newNote.note}`);
         
-        return updatedQueue;
-      });
-    }, 5000);
+        updateAudioQueue(prevQueue => {
+          // Add the new note to the queue
+          const updatedQueue = [...prevQueue, newNote];
+          
+          return updatedQueue;
+        });
+      }, 5000);
 
-    setAutoGenerate(true);
-  };
+      setAutoGenerate(true);
+    };
   
   // Stop auto generation
   const stopAutoGeneration = () => {
@@ -285,7 +292,8 @@ const VoiceModule = forwardRef(({
     
     // Get the next note from the queue
     const nextNoteToPlay = audioQueueRef.current[0];
-    console.log(`${voiceType} selected note to play: ${nextNoteToPlay.note}`);
+    setCurrentNote(nextNoteToPlay);
+    console.log("NEXT NOTE ", nextNoteToPlay);
     
     // Remove the first item from the queue
     const newQueue = audioQueueRef.current.slice(1);
@@ -768,6 +776,12 @@ const VoiceModule = forwardRef(({
   
   // Add a single note to the queue
   const addNoteToQueue = () => {
+    // Only the master can add notes
+    if (!isMasterMode) {
+      console.log(`${voiceType} cannot add notes in slave mode`);
+      return;
+    }
+    
     const newNote = generateNewNote();
     updateAudioQueue(prevQueue => {
       const updatedQueue = [...prevQueue, newNote];
@@ -856,18 +870,24 @@ const VoiceModule = forwardRef(({
         </div>
         
         <div className="auto-generate">
-          <label>
+          <label className={!isMasterMode ? 'disabled' : ''}>
             <input 
               type="checkbox" 
               checked={autoGenerate} 
               onChange={handleAutoGenerateToggle}
+              disabled={!isMasterMode}
             />
             Auto-generate notes every 5 seconds
+            {!isMasterMode && <span className="slave-mode-note"> (disabled in slave mode)</span>}
           </label>
         </div>
         
         <div className="queue-controls">
-          <button className="queue-button add" onClick={addNoteToQueue}>
+          <button 
+            className="queue-button add" 
+            onClick={addNoteToQueue}
+            disabled={!isMasterMode}
+          >
             Add Random Note
           </button>
         </div>

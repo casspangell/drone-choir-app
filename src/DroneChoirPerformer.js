@@ -7,14 +7,16 @@ import useFrequencyStreaming from './useFrequencyStreaming';
 import TimeSyncUtils from './TimeSyncUtils';
 
 const DroneChoirPerformer = () => {
-  // Use the streaming hook
+  // Use the streaming hook - add isMaster to the destructured values
   const {
     isConnected,
     error,
     startFrequencyStream,
     stopAllStreams,
     voiceStates,
-    updateNotes
+    updateNotes,
+    isMaster,
+    checkMasterStatus
   } = useFrequencyStreaming();
 
   // State for controlling all modules
@@ -23,6 +25,20 @@ const DroneChoirPerformer = () => {
   const [isSolo, setIsSolo] = useState(false);
   const [syncStatus, setSyncStatus] = useState({ synced: false, offset: 0 });
   const [audioContextState, setAudioContextState] = useState('unknown');
+  const [isMasterMode, setIsMasterMode] = useState(false);
+
+  const [instanceId] = useState(() => {
+    // Try to get existing ID from localStorage
+    const savedId = localStorage.getItem('droneChoirInstanceId');
+    if (savedId) {
+      return savedId;
+    }
+    
+    // Generate a new ID and save it
+    const newId = Math.random().toString(36).substring(2, 9);
+    localStorage.setItem('droneChoirInstanceId', newId);
+    return newId;
+  });
   
   // Create refs to access the voice module methods
   const voiceModuleRefs = {
@@ -46,21 +62,21 @@ const DroneChoirPerformer = () => {
   }, [sharedAudioContext]);
 
   useEffect(() => {
-  if (sharedAudioContext) {
-    setAudioContextState(sharedAudioContext.state);
-    
-    // Add an event listener to detect state changes
-    const handleStateChange = () => {
+    if (sharedAudioContext) {
       setAudioContextState(sharedAudioContext.state);
-    };
-    
-    sharedAudioContext.addEventListener('statechange', handleStateChange);
-    
-    return () => {
-      sharedAudioContext.removeEventListener('statechange', handleStateChange);
-    };
-  }
-}, [sharedAudioContext]);
+      
+      // Add an event listener to detect state changes
+      const handleStateChange = () => {
+        setAudioContextState(sharedAudioContext.state);
+      };
+      
+      sharedAudioContext.addEventListener('statechange', handleStateChange);
+      
+      return () => {
+        sharedAudioContext.removeEventListener('statechange', handleStateChange);
+      };
+    }
+  }, [sharedAudioContext]);
 
   // to monitor sync status
   useEffect(() => {
@@ -73,8 +89,28 @@ const DroneChoirPerformer = () => {
     return () => clearInterval(syncCheckInterval);
   }, []);
 
+  // Update UI based on the master status from the useFrequencyStreaming hook
+  useEffect(() => {
+    if (isMaster !== undefined) {
+      setIsMasterMode(isMaster);
+      console.log(`isMaster state changed: ${isMaster}`);
+      console.log(`This client (${instanceId}) is ${isMaster ? 'MASTER' : 'SLAVE'} mode`);
+    }
+  }, [isMaster, instanceId]);
+
+  const ensureAudioContextRunning = useCallback(() => {
+    if (sharedAudioContext && sharedAudioContext.state === 'suspended') {
+      console.log('Attempting to resume suspended audio context');
+      sharedAudioContext.resume().then(() => {
+        console.log('Audio context resumed successfully');
+      }).catch(err => {
+        console.error('Failed to resume audio context:', err);
+      });
+    }
+  }, [sharedAudioContext]);
+
   // Sync with server voice states
-    useEffect(() => {
+  useEffect(() => {
     if (Object.keys(voiceStates).length > 0) {
       ensureAudioContextRunning();
       let anyPlaying = false;
@@ -113,18 +149,7 @@ const DroneChoirPerformer = () => {
       // Update master playing state
       setIsAllPlaying(anyPlaying);
     }
-  }, [voiceStates, initSharedAudioContext, sharedAudioContext]);
-
-  const ensureAudioContextRunning = useCallback(() => {
-    if (sharedAudioContext && sharedAudioContext.state === 'suspended') {
-      console.log('Attempting to resume suspended audio context');
-      sharedAudioContext.resume().then(() => {
-        console.log('Audio context resumed successfully');
-      }).catch(err => {
-        console.error('Failed to resume audio context:', err);
-      });
-    }
-  }, [sharedAudioContext]);
+  }, [voiceStates, initSharedAudioContext, sharedAudioContext, ensureAudioContextRunning]);
 
   const handleVoiceSelection = (voiceType) => {
     if (soloVoice === voiceType) {
@@ -153,24 +178,19 @@ const DroneChoirPerformer = () => {
       });
     }
   };
-  
-  // Handle the master control button click
-  const handleMasterControlClick = useCallback(() => {
-    if (isAllPlaying) {
-      // Stop all streaming frequencies
-      stopAllStreams();
-      // Stop all voice modules
-      stopAll(voiceModuleRefs, setIsAllPlaying);
-    } else {
-      // Start streaming for each voice type
-      Object.values(VOICE_RANGES).forEach(voiceConfig => {
-        startFrequencyStream(voiceConfig.id);
-      });
-      
-      // Start all voice modules
-      startAll(voiceModuleRefs, initSharedAudioContext, setIsAllPlaying);
+
+  // Modify auto-generation and note generation logic based on master/slave status
+  const addNoteToQueue = useCallback((voiceType, note) => {
+    if (!isMasterMode) {
+      console.log('Slave mode - cannot add notes to queue');
+      return; // Only the master can add notes
     }
-  }, [isAllPlaying, startFrequencyStream, stopAllStreams, initSharedAudioContext]);
+    
+    // Continue with adding notes to queue
+    if (note) {
+      updateNotes(voiceType, [note]);
+    }
+  }, [isMasterMode, updateNotes]);
   
   // Function to start all voices on a scheduled note
   const startUnisonScheduled = (voiceModuleRefs, initSharedAudioContext, setIsAllPlaying, unisonNote) => {
@@ -199,6 +219,24 @@ const DroneChoirPerformer = () => {
     setIsAllPlaying(true);
   };
   
+  // Handle the master control button click
+  const handleMasterControlClick = useCallback(() => {
+    if (isAllPlaying) {
+      // Stop all streaming frequencies
+      stopAllStreams();
+      // Stop all voice modules
+      stopAll(voiceModuleRefs, setIsAllPlaying);
+    } else {
+      // Start streaming for each voice type
+      Object.values(VOICE_RANGES).forEach(voiceConfig => {
+        startFrequencyStream(voiceConfig.id);
+      });
+      
+      // Start all voice modules
+      startAll(voiceModuleRefs, initSharedAudioContext, setIsAllPlaying);
+    }
+  }, [isAllPlaying, startFrequencyStream, stopAllStreams, initSharedAudioContext]);
+  
   // Handle unison start button click
   const handleUnisonStart = useCallback(() => {
     // Common pitch for unison
@@ -225,7 +263,8 @@ const DroneChoirPerformer = () => {
         pitch: commonPitch,
         note: noteName,
         duration: 10,
-        scheduledStartTime: scheduledStartTime
+        scheduledStartTime: scheduledStartTime,
+        instanceId: instanceId // Add instanceId to check master permission
       })
     }).catch(error => console.error('Error setting unison:', error));
     
@@ -236,32 +275,26 @@ const DroneChoirPerformer = () => {
     
     // Start the scheduled unison performance
     startUnisonScheduled(voiceModuleRefs, initSharedAudioContext, setIsAllPlaying, unisonNote);
-  }, [startFrequencyStream, initSharedAudioContext]);
+  }, [startFrequencyStream, initSharedAudioContext, instanceId]);
 
   // Handle note queue updates
   const handleNoteQueueUpdate = useCallback((voiceType, notes) => {
+    // Only allow master to update notes
+    if (!isMasterMode) {
+      console.log(`Cannot update notes in slave mode for ${voiceType}`);
+      return;
+    }
+    
     // Update server with new notes
     updateNotes(voiceType, notes);
-  }, [updateNotes]);
+  }, [updateNotes, isMasterMode]);
 
   return (
-  <div className="drone-choir-multi">
-  <div style={{padding: '10px', backgroundColor: '#f0f0f0', marginBottom: '10px', textAlign: 'center'}}>
-  Current Audio Context State: {audioContextState || 'No AudioContext'}
-</div>
-    {/* Audio context warning */}
-    {audioContextState === 'suspended' && (
-      <div className="audio-warning">
-        <p>Click or tap anywhere on the page to enable audio playback</p>
-        <button 
-          onClick={() => sharedAudioContext?.resume()}
-          className="audio-enable-button"
-        >
-          Enable Audio
-        </button>
+    <div className="drone-choir-multi">
+      <div style={{padding: '10px', backgroundColor: '#f0f0f0', marginBottom: '10px', textAlign: 'center'}}>
+        Current Audio Context State: {audioContextState || 'No AudioContext'}
       </div>
-    )}
-      {/* Connection and sync status display */}
+
       <div className="connection-status">
         <span 
           className={`status-indicator ${isConnected ? 'connected' : 'disconnected'}`}
@@ -274,8 +307,27 @@ const DroneChoirPerformer = () => {
         >
           {syncStatus.synced ? 'Time Synced' : 'Not Synced'}
         </span>
+        <span 
+          className={`mode-indicator ${isMasterMode ? 'master' : 'slave'}`}
+          onClick={() => checkMasterStatus && checkMasterStatus()} // Add click handler to refresh status
+        >
+          {isMasterMode ? 'Master Mode' : 'Slave Mode'}
+        </span>
       </div>
-      
+
+      {/* Audio context warning */}
+      {audioContextState === 'suspended' && (
+        <div className="audio-warning">
+          <p>Click or tap anywhere on the page to enable audio playback</p>
+          <button 
+            onClick={() => sharedAudioContext?.resume()}
+            className="audio-enable-button"
+          >
+            Enable Audio
+          </button>
+        </div>
+      )}
+        
       {/* Connection status and error handling */}
       {error && (
         <div className="connection-error">
@@ -288,7 +340,7 @@ const DroneChoirPerformer = () => {
         <button
           onClick={handleUnisonStart}
           className="master-control-button initial"
-          disabled={!isConnected}
+          disabled={!isConnected || (!isMasterMode && handleUnisonStart.name !== 'unison')}
         >
           Start All on Same Pitch (10s)
         </button>
@@ -328,6 +380,7 @@ const DroneChoirPerformer = () => {
             isCurrentSolo={soloVoice === voiceType}
             soloVoice={soloVoice}
             onNoteQueueUpdate={(notes) => handleNoteQueueUpdate(voiceType, notes)}
+            isMasterMode={isMasterMode} // Pass master/slave status
           />
         ))}
       </div>

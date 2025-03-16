@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+// Import using ES Modules syntax
 import FrequencyStreamClient from './FrequencyStreamClient';
 
 const useFrequencyStreaming = (options = {}) => {
@@ -11,6 +12,7 @@ const useFrequencyStreaming = (options = {}) => {
     const [streamingFrequencies, setStreamingFrequencies] = useState([]);
     const [voiceStates, setVoiceStates] = useState({});
     const [error, setError] = useState(null);
+    const [isMaster, setIsMaster] = useState(false);
 
     // Memoized control methods
     const startFrequencyStream = useCallback((frequencyId) => {
@@ -34,73 +36,138 @@ const useFrequencyStreaming = (options = {}) => {
     }, [streamingFrequencies]);
 
     const updateNotes = useCallback((voiceType, notes) => {
+        // Only allow master to update notes
+        if (!isMaster) {
+            console.log(`Cannot update notes in slave mode for ${voiceType}`);
+            return;
+        }
+        
         if (clientRef.current) {
             clientRef.current.updateNotes(voiceType, notes);
+        }
+    }, [isMaster]);
+
+    // Add method to check master status
+    const checkMasterStatus = useCallback(() => {
+        if (clientRef.current) {
+            clientRef.current.checkMasterStatus();
         }
     }, []);
 
     // Initialize streaming client on mount
     useEffect(() => {
-        // Create streaming client
-        clientRef.current = new FrequencyStreamClient(options.serverUrl);
+        let isActive = true; // For cleanup to prevent state updates after unmount
 
-        // Set up event listeners
-        const client = clientRef.current;
+        try {
+            // Only create a new client if one doesn't exist
+            if (!clientRef.current) {
+                console.log("Creating new FrequencyStreamClient...");
+                clientRef.current = new FrequencyStreamClient(options.serverUrl || 'ws://localhost:8080');
+                const client = clientRef.current;
+                console.log("FrequencyStreamClient created successfully:", client);
 
-        const handleConnect = () => {
-            setIsConnected(true);
-            setError(null);
-        };
+                const handleConnect = () => {
+                    if (!isActive) return;
+                    console.log("WebSocket connected!");
+                    setIsConnected(true);
+                    setError(null);
+                    // Check master status on connect
+                    setTimeout(() => {
+                        if (client && isActive) {
+                            client.checkMasterStatus();
+                        }
+                    }, 500);
+                };
 
-        const handleDisconnect = () => {
-            setIsConnected(false);
-        };
+                const handleDisconnect = () => {
+                    if (!isActive) return;
+                    console.log("WebSocket disconnected");
+                    setIsConnected(false);
+                    setIsMaster(false);
+                };
 
-        const handleError = (err) => {
-            setError(err);
-            setIsConnected(false);
-        };
+                const handleError = (err) => {
+                    if (!isActive) return;
+                    console.error("WebSocket error:", err);
+                    setError(err);
+                    setIsConnected(false);
+                };
 
-        const handleStreamStart = (frequency) => {
-            setStreamingFrequencies(prev => 
-                prev.some(f => f.id === frequency.id) 
-                    ? prev 
-                    : [...prev, frequency]
-            );
-        };
+                const handleStreamStart = (frequency) => {
+                    if (!isActive) return;
+                    setStreamingFrequencies(prev => 
+                        prev.some(f => f.id === frequency.id) 
+                            ? prev 
+                            : [...prev, frequency]
+                    );
+                };
 
-        const handleStreamStop = (frequencyId) => {
-            setStreamingFrequencies(prev => 
-                prev.filter(f => f.id !== frequencyId)
-            );
-        };
+                const handleStreamStop = (frequencyId) => {
+                    if (!isActive) return;
+                    setStreamingFrequencies(prev => 
+                        prev.filter(f => f.id !== frequencyId)
+                    );
+                };
 
-        const handleVoiceStateUpdate = (voiceType, state) => {
-            setVoiceStates(prev => ({
-                ...prev,
-                [voiceType]: state
-            }));
-        };
+                const handleVoiceStateUpdate = (voiceType, state) => {
+                    if (!isActive) return;
+                    setVoiceStates(prev => ({
+                        ...prev,
+                        [voiceType]: state
+                    }));
+                };
 
-        client
-            .on('connect', handleConnect)
-            .on('disconnect', handleDisconnect)
-            .on('error', handleError)
-            .on('streamStart', handleStreamStart)
-            .on('streamStop', handleStreamStop)
-            .on('voiceStateUpdate', handleVoiceStateUpdate)
-            .connect();
+                const handleMasterChanged = (newIsMaster) => {
+                    if (!isActive) return;
+                    console.log(`Master status changed: ${newIsMaster ? 'MASTER' : 'SLAVE'}`);
+                    setIsMaster(newIsMaster);
+                };
 
-        // Cleanup on unmount
+                client
+                    .on('connect', handleConnect)
+                    .on('disconnect', handleDisconnect)
+                    .on('error', handleError)
+                    .on('streamStart', handleStreamStart)
+                    .on('streamStop', handleStreamStop)
+                    .on('voiceStateUpdate', handleVoiceStateUpdate)
+                    .on('masterChanged', handleMasterChanged);
+
+                // Connect only once
+                client.connect();
+            }
+        } catch (err) {
+            if (isActive) {
+                console.error("Error initializing FrequencyStreamClient:", err);
+                setError(err);
+            }
+        }
+
+        // Cleanup on unmount or when serverUrl changes
         return () => {
-            client.disconnect();
+            isActive = false;
+            if (clientRef.current) {
+                clientRef.current.disconnect();
+                clientRef.current = null;
+            }
         };
     }, [options.serverUrl]);
+
+    // Re-check master status periodically to ensure UI is in sync
+    useEffect(() => {
+        if (isConnected) {
+            const checkInterval = setInterval(() => {
+                checkMasterStatus();
+            }, 10000); // Check every 10 seconds
+            
+            return () => clearInterval(checkInterval);
+        }
+    }, [isConnected, checkMasterStatus]);
 
     return {
         // Connection state
         isConnected,
         error,
+        isMaster,
 
         // Frequency information
         frequencies,
@@ -111,7 +178,8 @@ const useFrequencyStreaming = (options = {}) => {
         startFrequencyStream,
         stopFrequencyStream,
         stopAllStreams,
-        updateNotes
+        updateNotes,
+        checkMasterStatus
     };
 };
 

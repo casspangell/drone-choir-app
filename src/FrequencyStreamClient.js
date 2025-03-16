@@ -11,8 +11,16 @@ class FrequencyStreamClient {
         this.connectionAttempts = 0;
         this.maxConnectionAttempts = 5;
         this.voiceStates = {};
-        // Add the serverTimeOffset as a class property here
         this.serverTimeOffset = 0;
+        this.pingInterval = null; // Initialize ping interval
+        
+        // Use a consistent instance ID from localStorage
+        this.instanceId = localStorage.getItem('droneChoirInstanceId');
+        if (!this.instanceId) {
+            this.instanceId = Math.random().toString(36).substring(2, 9);
+            localStorage.setItem('droneChoirInstanceId', this.instanceId);
+        }
+        console.log(`FrequencyStreamClient initialized with ID: ${this.instanceId}`);
 
         this.frequencies = Object.values(VOICE_RANGES).map(voice => ({
           id: voice.id,
@@ -34,8 +42,44 @@ class FrequencyStreamClient {
             streamStart: [],
             streamStop: [],
             voiceStateUpdate: [],
-            notesUpdate: []
+            notesUpdate: [],
+            masterChanged: []
         };
+    }
+
+    scheduleForcedReconnection() {
+      // Force reconnection every 2 minutes to keep connection fresh
+      this.forcedReconnectTimer = setTimeout(() => {
+        console.log("Performing scheduled reconnection to maintain fresh connection");
+        if (this.socket) {
+          // Store master status and save before reconnecting
+          const wasMaster = this.instanceId === this.masterInstanceId;
+          
+          // Perform a clean disconnect and reconnect
+          this.socket.close();
+          setTimeout(() => this.connect(), 500);
+        }
+      }, 120000); // 2 minutes
+    }
+
+    // Set up ping/pong to keep connection alive
+    setupPingInterval() {
+        // Clear any existing interval
+        if (this.pingInterval) {
+            clearInterval(this.pingInterval);
+        }
+        
+        // Set up a new interval to ping every 20 seconds
+        this.pingInterval = setInterval(() => {
+            if (this.socket && this.socket.readyState === WebSocket.OPEN) {
+                console.log("Sending ping to keep connection alive");
+                this.socket.send(JSON.stringify({
+                    type: 'PING',
+                    instanceId: this.instanceId,
+                    timestamp: Date.now()
+                }));
+            }
+        }, 20000);
     }
 
     on(eventName, callback) {
@@ -78,9 +122,26 @@ class FrequencyStreamClient {
 
     // WebSocket connection opened
     handleOpen(event) {
-        console.log('Connected to frequency streaming server');
+        console.log(`Connected to frequency streaming server with ID: ${this.instanceId}`);
         this.isConnected = true;
         this.connectionAttempts = 0;
+
+        this.scheduleForcedReconnection();
+
+        // In disconnect:
+        if (this.forcedReconnectTimer) {
+          clearTimeout(this.forcedReconnectTimer);
+          this.forcedReconnectTimer = null;
+        }
+        
+        // Send registration message with instance ID
+        this.socket.send(JSON.stringify({
+            type: 'REGISTER_CLIENT',
+            instanceId: this.instanceId
+        }));
+        
+        // Start ping interval to keep connection alive
+        this.setupPingInterval();
         
         this.emit('connect', event);
         this.requestFrequencies();
@@ -141,6 +202,20 @@ class FrequencyStreamClient {
             this.voiceStates[data.voiceType] = data.state;
             this.emit('voiceStateUpdate', data.voiceType, data.state);
             break;
+          case 'MASTER_CHANGED':
+            console.log(`Master changed to: ${data.newMasterId}`);
+            
+            // Check if we are the new master
+            const isMaster = data.newMasterId === this.instanceId;
+            
+            // Notify listeners
+            this.emit('masterChanged', isMaster);
+            break;
+
+            case 'PONG':
+              const roundTripTime = Date.now() - data.timestamp;
+              console.log(`Received pong, round-trip time: ${roundTripTime}ms`);
+              break;
           case 'ERROR':
             console.error('Streaming error:', data.message);
             break;
@@ -155,8 +230,21 @@ class FrequencyStreamClient {
     // WebSocket connection closed
     handleClose(event) {
         this.isConnected = false;
+        
+        // Clear ping interval
+        if (this.pingInterval) {
+            clearInterval(this.pingInterval);
+            this.pingInterval = null;
+        }
+        
         this.emit('disconnect', event);
         console.log('Disconnected from frequency streaming server');
+        
+        // Don't attempt reconnection if another connection for this client is taking over
+        if (event.wasClean) {
+            console.log('Clean disconnect, no automatic reconnection');
+            return;
+        }
         
         // Attempt reconnection with exponential backoff
         if (this.connectionAttempts < this.maxConnectionAttempts) {
@@ -180,7 +268,8 @@ class FrequencyStreamClient {
     requestFrequencies() {
         if (this.socket && this.socket.readyState === WebSocket.OPEN) {
             this.socket.send(JSON.stringify({
-                type: 'REQUEST_FREQUENCIES'
+                type: 'REQUEST_FREQUENCIES',
+                instanceId: this.instanceId
             }));
         }
     }
@@ -190,7 +279,8 @@ class FrequencyStreamClient {
         if (this.socket && this.socket.readyState === WebSocket.OPEN) {
             this.socket.send(JSON.stringify({
                 type: 'START_STREAM',
-                frequencyId
+                frequencyId,
+                instanceId: this.instanceId
             }));
         }
     }
@@ -200,7 +290,8 @@ class FrequencyStreamClient {
         if (this.socket && this.socket.readyState === WebSocket.OPEN) {
             this.socket.send(JSON.stringify({
                 type: 'STOP_STREAM',
-                frequencyId
+                frequencyId,
+                instanceId: this.instanceId
             }));
         }
     }
@@ -211,7 +302,8 @@ class FrequencyStreamClient {
             this.socket.send(JSON.stringify({
                 type: 'UPDATE_NOTES',
                 voiceType,
-                notes
+                notes,
+                instanceId: this.instanceId
             }));
         }
     }
@@ -219,6 +311,26 @@ class FrequencyStreamClient {
     // Get the current state for a voice type
     getVoiceState(voiceType) {
         return this.voiceStates[voiceType] || null;
+    }
+
+    // to check if this client is the master
+    checkMasterStatus() {
+      if (this.socket && this.socket.readyState === WebSocket.OPEN) {
+        fetch(`${this.serverUrl.replace('ws:', 'http:')}/api/master/check`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ instanceId: this.instanceId })
+        })
+        .then(response => response.json())
+        .then(data => {
+          console.log(`Master status check: ${data.isMaster ? 'MASTER' : 'SLAVE'}`);
+          // Ensure we emit this event with the latest status
+          this.emit('masterChanged', data.isMaster);
+        })
+        .catch(error => {
+          console.error('Error checking master status:', error);
+        });
+      }
     }
 
     // Local frequency playback methods
@@ -289,6 +401,15 @@ class FrequencyStreamClient {
 
     // Cleanup method
     disconnect() {
+      // Release master role if disconnecting
+      fetch(`${this.serverUrl.replace('ws:', 'http:')}/api/master/release`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ instanceId: this.instanceId })
+      }).catch(error => {
+        console.error('Error releasing master role:', error);
+      });
+      
         // Stop all local oscillators
         this.oscillators.forEach((oscData, frequencyId) => {
             this.stopLocalFrequencyPlayback(frequencyId);
@@ -301,4 +422,5 @@ class FrequencyStreamClient {
     }
 }
 
+// Using proper ES Modules export syntax
 export default FrequencyStreamClient;

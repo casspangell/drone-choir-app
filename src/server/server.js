@@ -5,7 +5,15 @@ const cors = require('cors');
 
 const app = express();
 const server = http.createServer(app);
-const wss = new WebSocket.Server({ server });
+const wss = new WebSocket.Server({ 
+  server,
+  // Add these configuration options for better stability
+  perMessageDeflate: false,
+  clientTracking: true,
+  // Increase timeouts (in milliseconds)
+  pingTimeout: 60000, // 1 minute
+  pingInterval: 30000 // 30 seconds
+});
 
 // Start the server
 const PORT = 8080;
@@ -16,6 +24,15 @@ server.listen(PORT, () => {
 // Enable CORS
 app.use(cors());
 app.use(express.json());
+
+// Reset master status on server start
+let masterClient = null;
+console.log('Server starting, master reset to null');
+
+// Track connected clients and master instance
+let connectedClients = [];
+let clientsMap = new Map(); // Maps instanceId to WebSocket object
+let masterInstanceId = null;
 
 // Shared state for all voice types
 const voiceStates = {
@@ -75,23 +92,24 @@ function getServerTimeInfo() {
 wss.on('connection', (ws) => {
   console.log('Client connected to WebSocket');
   
+  // Generate temporary ID until client registers
+  ws.tempId = Math.random().toString(36).substring(2, 9);
+  
   // Send current state to newly connected clients
   Object.entries(voiceStates).forEach(([voiceType, state]) => {
-    voiceStates[voiceType].noteQueue = [];
-    voiceStates[voiceType].isPlaying = false;
-    voiceStates[voiceType].lastUpdated = Date.now();
-  
     ws.send(JSON.stringify({
       type: 'VOICE_STATE_UPDATE',
       voiceType,
-      state
+      state,
+      timing: getServerTimeInfo()
     }));
     
     if (state.noteQueue && state.noteQueue.length > 0) {
       ws.send(JSON.stringify({
         type: 'NOTES_UPDATE',
         voiceType,
-        notes: state.noteQueue
+        notes: state.noteQueue,
+        timing: getServerTimeInfo()
       }));
     }
   });
@@ -99,7 +117,80 @@ wss.on('connection', (ws) => {
   ws.on('message', (message) => {
     try {
       const data = JSON.parse(message.toString());
-      console.log('Received:', data);
+      
+      // Handle client registration
+      if (data.type === 'REGISTER_CLIENT' && data.instanceId) {
+        const instanceId = data.instanceId;
+        
+        console.log(`Client registration received with ID: ${instanceId}`);
+        
+        // Remove old entry if this client already had a tempId
+        if (ws.tempId && ws.tempId !== instanceId) {
+          connectedClients = connectedClients.filter(id => id !== ws.tempId);
+        }
+        
+        // Store the instance ID with this connection
+        ws.instanceId = instanceId;
+        
+        // Check if this client was already connected (reconnection case)
+        const existingConnection = clientsMap.get(instanceId);
+        if (existingConnection && existingConnection !== ws) {
+          console.log(`Replacing existing connection for ${instanceId}`);
+          
+          // Mark the old connection as being replaced to prevent reconnection loop
+          existingConnection.isBeingReplaced = true;
+          
+          // Close the old connection if it's still open
+          if (existingConnection.readyState === WebSocket.OPEN) {
+            existingConnection.close();
+          }
+        }
+        
+        // Store this client in our map
+        clientsMap.set(instanceId, ws);
+        
+        // Add to connected clients if not already there
+        if (!connectedClients.includes(instanceId)) {
+          connectedClients.push(instanceId);
+        }
+        
+        // Assign master if none exists
+        if (masterInstanceId === null) {
+          masterInstanceId = instanceId;
+          console.log(`First client ${instanceId} assigned as master`);
+          
+          // Notify the new master
+          ws.send(JSON.stringify({
+            type: 'MASTER_CHANGED',
+            newMasterId: instanceId,
+            timing: getServerTimeInfo()
+          }));
+        } else {
+          // Let the client know who the master is
+          ws.send(JSON.stringify({
+            type: 'MASTER_CHANGED',
+            newMasterId: masterInstanceId,
+            timing: getServerTimeInfo()
+          }));
+        }
+        
+        return; // We've handled registration, no need to process further
+      }
+
+      // Handle PING messages to keep connection alive
+      if (data.type === 'PING') {
+        // Send a PONG response
+        ws.send(JSON.stringify({
+          type: 'PONG',
+          timestamp: data.timestamp,
+          serverTime: Date.now(),
+          timing: getServerTimeInfo()
+        }));
+        return; // Skip further processing
+      }
+      
+      // For all other messages, get the client ID from the message or the WebSocket
+      const clientId = data.instanceId || ws.instanceId || ws.tempId;
       
       // Handle different message types
       switch (data.type) {
@@ -149,6 +240,20 @@ wss.on('connection', (ws) => {
           
         case 'UPDATE_NOTES':
           if (data.voiceType && data.notes) {
+            // Only allow the master to update notes
+            if (clientId !== masterInstanceId) {
+              console.log(`Client ${clientId} attempted to update notes but is not master`);
+              
+              // Notify client they're not the master
+              ws.send(JSON.stringify({
+                type: 'ERROR',
+                message: 'Only the master can update notes',
+                timing: getServerTimeInfo()
+              }));
+              
+              return;
+            }
+            
             voiceStates[data.voiceType].noteQueue = data.notes;
             voiceStates[data.voiceType].lastUpdated = Date.now();
             
@@ -168,11 +273,108 @@ wss.on('connection', (ws) => {
   
   // Handle disconnection
   ws.on('close', () => {
-    console.log('Client disconnected from WebSocket');
+    const clientId = ws.instanceId || ws.tempId;
+    console.log(`Client ${clientId} disconnected from WebSocket`);
+    
+    // Skip cleanup if this connection is being replaced
+    if (ws.isBeingReplaced) {
+      console.log(`Connection for ${clientId} was replaced, skipping cleanup`);
+      return;
+    }
+    
+    // Only remove from maps if this is the current connection for this ID
+    if (ws.instanceId && clientsMap.get(ws.instanceId) === ws) {
+      clientsMap.delete(ws.instanceId);
+      
+      // Only manipulate the master if this was the current master
+      if (ws.instanceId === masterInstanceId) {
+        // Remove this client
+        connectedClients = connectedClients.filter(id => id !== ws.instanceId);
+        
+        // Assign a new master if any clients remain
+        masterInstanceId = connectedClients.length > 0 ? connectedClients[0] : null;
+        console.log(`Master ${ws.instanceId} disconnected. New master: ${masterInstanceId}`);
+        
+        // Notify all clients about the new master
+        if (masterInstanceId) {
+          broadcastToAll({
+            type: 'MASTER_CHANGED',
+            newMasterId: masterInstanceId
+          });
+        }
+      } else {
+        // Just remove from connected clients
+        connectedClients = connectedClients.filter(id => id !== ws.instanceId);
+      }
+    } else if (ws.tempId) {
+      // Remove temporary ID from connected clients
+      connectedClients = connectedClients.filter(id => id !== ws.tempId);
+    }
   });
 });
 
-// GET endpoint to retrieve tenor state
+// Endpoint to check and set master status
+app.post('/api/master/check', (req, res) => {
+  const { instanceId } = req.body;
+  
+  if (!instanceId) {
+    return res.status(400).json({ error: 'No instance ID provided' });
+  }
+  
+  // Assign first client as master if no master exists
+  if (masterInstanceId === null) {
+    masterInstanceId = instanceId;
+    console.log(`First client ${instanceId} assigned as master`);
+    
+    // Add to connected clients if not already there
+    if (!connectedClients.includes(instanceId)) {
+      connectedClients.push(instanceId);
+    }
+  }
+  
+  const isMaster = (masterInstanceId === instanceId);
+  console.log(`Client ${instanceId} checking status: ${isMaster ? 'MASTER' : 'SLAVE'}`);
+  
+  res.json({ isMaster });
+});
+
+// Endpoint to release master role (when a master disconnects)
+app.post('/api/master/release', (req, res) => {
+  const { instanceId } = req.body;
+  
+  if (instanceId && instanceId === masterInstanceId) {
+    // This was the master, so release the role
+    connectedClients = connectedClients.filter(id => id !== instanceId);
+    masterInstanceId = connectedClients.length > 0 ? connectedClients[0] : null;
+    console.log(`Master ${instanceId} released. New master: ${masterInstanceId}`);
+    
+    // Notify all clients about the new master
+    if (masterInstanceId) {
+      broadcastToAll({
+        type: 'MASTER_CHANGED',
+        newMasterId: masterInstanceId
+      });
+    }
+  } else {
+    // Just remove from connected clients
+    connectedClients = connectedClients.filter(id => id !== instanceId);
+  }
+  
+  // Remove from client map
+  clientsMap.delete(instanceId);
+  console.log(`Client ${instanceId} disconnected. Total clients: ${connectedClients.length}`);
+  
+  res.json({ success: true });
+});
+
+// Endpoint to reset master (for testing)
+app.post('/api/master/reset', (req, res) => {
+  masterInstanceId = null;
+  console.log('Master reset to null');
+  res.json({ success: true });
+});
+
+// GET endpoint to retrieve voice state
 app.get('/api/voice/:voiceType', (req, res) => {
   const { voiceType } = req.params;
   
@@ -192,7 +394,12 @@ app.get('/api/voice/:voiceType', (req, res) => {
 // POST endpoint to update voice state
 app.post('/api/voice/:voiceType/state', (req, res) => {
   const { voiceType } = req.params;
-  const { isPlaying } = req.body;
+  const { isPlaying, instanceId } = req.body;
+  
+  // Only allow the master to update state
+  if (instanceId !== masterInstanceId) {
+    return res.status(403).json({ error: 'Only the master can update voice state' });
+  }
   
   if (voiceStates[voiceType]) {
     voiceStates[voiceType] = {
@@ -217,7 +424,12 @@ app.post('/api/voice/:voiceType/state', (req, res) => {
 // POST endpoint for updating a voice's note queue
 app.post('/api/voice/:voiceType/notes', (req, res) => {
   const { voiceType } = req.params;
-  const { notes } = req.body;
+  const { notes, instanceId } = req.body;
+  
+  // Only allow the master to update notes
+  if (instanceId && instanceId !== masterInstanceId) {
+    return res.status(403).json({ error: 'Only the master can update notes' });
+  }
   
   if (voiceStates[voiceType] && Array.isArray(notes)) {
     voiceStates[voiceType].noteQueue = notes;
@@ -239,7 +451,12 @@ app.post('/api/voice/:voiceType/notes', (req, res) => {
 
 // When handling the unison feature, add this code to ensure synchronized playback
 app.post('/api/unison', (req, res) => {
-  const { pitch, note, duration } = req.body;
+  const { pitch, note, duration, instanceId } = req.body;
+  
+  // Only allow the master to trigger unison
+  if (instanceId && instanceId !== masterInstanceId) {
+    return res.status(403).json({ error: 'Only the master can trigger unison' });
+  }
   
   if (pitch && note) {
     // Create a note object with scheduled start time
