@@ -73,6 +73,18 @@ const VoiceModule = forwardRef(({
       }
     };
   }, [sharedAudioContext]);
+
+  useEffect(() => {
+    // Add or remove 'playing' class based on isPlaying state
+    const container = document.querySelector('.single-voice-container');
+    if (container) {
+      if (isPlaying) {
+        container.classList.add('playing');
+      } else {
+        container.classList.remove('playing');
+      }
+    }
+  }, [isPlaying]);
   
   // Expose methods to parent component via ref
   useImperativeHandle(ref, () => ({
@@ -135,20 +147,6 @@ const VoiceModule = forwardRef(({
     }
   }));
 
-  // Click handler for container
-  const handleContainerClick = () => {
-    const newSelectedState = !isSelected;
-    setIsSelected(newSelectedState);
-    
-    // Trigger the solo toggle
-    const newSoloState = !isSolo;
-    setIsSolo(newSoloState);
-    
-    if (onSoloToggle) {
-      onSoloToggle(voiceType, newSoloState);
-    }
-  };
-  
   // Initialize audio context
   const initAudio = () => {
     // If no context exists, create a new one
@@ -738,24 +736,10 @@ const adjustVolumeForSolo = (soloVolume) => {
   };
   
 return (
-  <div className={`drone-choir-container ${isSelected ? 'selected' : ''} ${isSingleMode ? 'single-mode' : ''}`} 
-       onClick={!isViewerMode ? handleContainerClick : undefined}>
-    <div className="module-controls">
-      <button
-        onClick={() => {
-          const newSoloState = !isSolo;
-          setIsSolo(newSoloState);
-          
-          if (onSoloToggle) {
-            onSoloToggle(voiceType, newSoloState);
-          }
-        }}
-        className={`module-control-button solo-button ${isSolo ? 'active' : ''}`}
-        disabled={isViewerMode}
-      >
-        {isSolo ? 'Unsolo' : 'Solo'}
-      </button>
-    </div>
+  <div className={`drone-choir-container ${isSelected ? 'selected' : ''} ${isSingleMode ? 'single-mode' : ''}`} >
+    {isSingleMode && (
+      <div className="currently-playing">Currently Playing</div>
+    )}
     <h2 className="voice-title">{voiceRange.label}</h2>
     
     {/* Enhanced visualization for single mode */}
