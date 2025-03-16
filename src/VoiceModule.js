@@ -179,7 +179,8 @@ const VoiceModule = forwardRef(({ voiceType, onPlayStateChange, sharedAudioConte
   
   // Generate a random duration between 3 and 8 seconds
   const generateRandomDuration = () => {
-    return Math.random() * 5 + 3; // 3 to 8 seconds
+    // return Math.random() * 5 + 3; // 3 to 8 seconds
+    return 10;
   };
   
   // Generate a note name from a frequency (simplified)
