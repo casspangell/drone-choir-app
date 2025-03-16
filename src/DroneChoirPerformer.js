@@ -117,7 +117,6 @@ const DroneChoirPerformer = () => {
     };
   }, [viewMode]);
   
-  // Apply received state from server
   const applyReceivedState = (state) => {
     if (!state) return;
     
@@ -131,6 +130,8 @@ const DroneChoirPerformer = () => {
         // Skip if we're in single voice mode and this isn't our voice
         if (singleVoiceMode && voiceType !== singleVoiceMode) return;
         
+        // Even if global state is "stopped", process individual voice states
+        // This ensures we respect the actual state of each voice
         applyVoiceState(voiceType, voiceState);
       });
     }
@@ -164,34 +165,53 @@ const DroneChoirPerformer = () => {
     }
   };
   
-  // Broadcast current state to server
   const broadcastState = () => {
     if (viewMode !== 'controller') return;
     
     // Gather state from all voice modules
     const voices = {};
+    let anyVoicePlaying = false;  // Add this line
+    
     Object.entries(voiceModuleRefs).forEach(([voiceType, ref]) => {
       if (!ref.current) return;
       
+      const isVoicePlaying = ref.current.isPlaying || false;
+      const currentNote = ref.current.getCurrentNote?.() || null;
+      
+      // Track if any voice is playing
+      if (isVoicePlaying) {
+        anyVoicePlaying = true;
+      }
+      
       voices[voiceType] = {
-        isPlaying: ref.current.isPlaying || false,
-        currentNote: ref.current.getCurrentNote?.() || null,
+        isPlaying: isVoicePlaying,
+        currentNote: currentNote,
         nextNote: ref.current.getNextNote?.() || null
       };
+      
+      console.log(`${voiceType} state for broadcast:`, isVoicePlaying ? 'playing' : 'stopped', currentNote?.note);
     });
+    
+    // Update global playing state if it doesn't match
+    if (anyVoicePlaying !== isAllPlaying) {
+      setIsAllPlaying(anyVoicePlaying);
+    }
     
     // Create complete state object
     const state = {
-      isPlaying: isAllPlaying,
+      isPlaying: anyVoicePlaying, // Use the detected state instead of isAllPlaying
       soloVoice,
       voices,
       timestamp: Date.now()
     };
     
+    console.log("Broadcasting state:", state.isPlaying ? 'playing' : 'stopped', 
+                Object.keys(voices).map(v => `${v}: ${voices[v].isPlaying ? 'playing' : 'stopped'}`).join(', '));
+    
     // Send to server
     socketManager.updateState(state);
   };
-  
+
   const handleSoloToggle = useCallback((voiceType, isSolo) => {
     if (viewMode !== 'controller') return;
     

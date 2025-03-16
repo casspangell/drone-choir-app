@@ -95,6 +95,34 @@ io.on('connection', (socket) => {
       });
     }
   });
+
+  // Handle state updates from controller (main dashboard)
+socket.on('state-update', (newState) => {
+  console.log('State update from controller:', 
+              newState.isPlaying ? 'playing' : 'stopped',
+              Object.keys(newState.voices).map(v => 
+                `${v}: ${newState.voices[v].isPlaying ? 'playing' : 'stopped'}`).join(', '));
+  
+  // Store the updated state
+  currentState = newState;
+  
+  // Broadcast to all viewers
+  socket.to('viewers').emit('state-updated', newState);
+});
+
+// Handle specific voice requests
+socket.on('request-voice-state', (voiceType) => {
+  // Send the state for the requested voice
+  if (currentState.voices[voiceType]) {
+    console.log(`Sending ${voiceType} state:`, 
+                currentState.voices[voiceType].isPlaying ? 'playing' : 'stopped');
+    
+    socket.emit('voice-state', {
+      voiceType,
+      state: currentState.voices[voiceType]
+    });
+  }
+});
   
   // Handle state updates from controller (main dashboard)
   socket.on('state-update', (newState) => {
