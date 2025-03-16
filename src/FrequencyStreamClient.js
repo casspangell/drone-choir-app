@@ -11,6 +11,8 @@ class FrequencyStreamClient {
         this.connectionAttempts = 0;
         this.maxConnectionAttempts = 5;
         this.voiceStates = {};
+        // Add the serverTimeOffset as a class property here
+        this.serverTimeOffset = 0;
 
         this.frequencies = Object.values(VOICE_RANGES).map(voice => ({
           id: voice.id,
@@ -89,6 +91,23 @@ class FrequencyStreamClient {
       try {
         const data = JSON.parse(event.data);
         
+        // Process timing info if available
+        if (data.timing) {
+          // Calculate the difference between server time and client time
+          // This helps adjust for clock differences between server and client
+          const clientReceiveTime = Date.now();
+          const serverSendTime = data.timing.serverTime;
+          const estimatedLatency = data.timing.timeOffset || 0;
+          
+          // Calculate time difference between server and client
+          const timeDiff = serverSendTime - clientReceiveTime + estimatedLatency;
+          
+          // Update our offset with some smoothing
+          this.serverTimeOffset = this.serverTimeOffset * 0.8 + timeDiff * 0.2;
+          
+          // console.log(`Server-client time offset: ${this.serverTimeOffset.toFixed(0)}ms`);
+        }
+        
         switch(data.type) {
           case 'FREQUENCY_CONFIG':
           case 'FREQUENCY_LIST':
@@ -102,7 +121,19 @@ class FrequencyStreamClient {
             this.stopLocalFrequencyPlayback(data.frequencyId);
             break;
           case 'NOTES_UPDATE':
-            console.log(`Received notes update for ${data.voiceType}:`, data.notes);
+            // console.log(`Received notes update for ${data.voiceType}:`, data.notes);
+            
+            // Add scheduled playback time to notes if needed
+            if (data.notes && data.notes.length > 0) {
+              data.notes = data.notes.map(note => {
+                if (note.scheduledStartTime) {
+                  // Adjust the scheduled time based on our calculated offset
+                  note.scheduledStartTime += this.serverTimeOffset;
+                }
+                return note;
+              });
+            }
+            
             this.emit('notesUpdate', data.voiceType, data.notes);
             break;
           case 'VOICE_STATE_UPDATE':

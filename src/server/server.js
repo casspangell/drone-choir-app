@@ -51,11 +51,24 @@ const voiceIdToType = {
 
 // Broadcast to all clients
 function broadcastToAll(data) {
+  // Add server time info to all broadcasts
+  const dataWithTiming = {
+    ...data,
+    timing: getServerTimeInfo()
+  };
+  
   wss.clients.forEach(client => {
     if (client.readyState === WebSocket.OPEN) {
-      client.send(JSON.stringify(data));
+      client.send(JSON.stringify(dataWithTiming));
     }
   });
+}
+
+function getServerTimeInfo() {
+  return {
+    serverTime: Date.now(),
+    timeOffset: 500  // Offset in milliseconds to account for network latency
+  };
 }
 
 // WebSocket connection handling
@@ -64,6 +77,10 @@ wss.on('connection', (ws) => {
   
   // Send current state to newly connected clients
   Object.entries(voiceStates).forEach(([voiceType, state]) => {
+    voiceStates[voiceType].noteQueue = [];
+    voiceStates[voiceType].isPlaying = false;
+    voiceStates[voiceType].lastUpdated = Date.now();
+  
     ws.send(JSON.stringify({
       type: 'VOICE_STATE_UPDATE',
       voiceType,
@@ -220,16 +237,19 @@ app.post('/api/voice/:voiceType/notes', (req, res) => {
   }
 });
 
-// POST endpoint for unison notes
+// When handling the unison feature, add this code to ensure synchronized playback
 app.post('/api/unison', (req, res) => {
   const { pitch, note, duration } = req.body;
   
   if (pitch && note) {
-    // Create a note object
+    // Create a note object with scheduled start time
+    const startTime = Date.now() + 1000; // Schedule 1 second in the future
+    
     const unisonNote = {
       frequency: pitch,
       duration: duration || 10,
-      note: note
+      note: note,
+      scheduledStartTime: startTime
     };
     
     // Update all voice states
@@ -238,7 +258,7 @@ app.post('/api/unison', (req, res) => {
       voiceStates[voiceType].isPlaying = true;
       voiceStates[voiceType].lastUpdated = Date.now();
       
-      // Broadcast notes update to all clients
+      // Broadcast notes update to all clients with timing info
       broadcastToAll({
         type: 'NOTES_UPDATE',
         voiceType,

@@ -143,6 +143,32 @@
   height: 18px;
 }
 
+.audio-warning {
+  background-color: #f8d7da;
+  color: #721c24;
+  padding: 15px;
+  margin: 15px auto;
+  border: 1px solid #f5c6cb;
+  border-radius: 4px;
+  text-align: center;
+  max-width: 600px;
+}
+
+.audio-enable-button {
+  background-color: #dc3545;
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 4px;
+  margin-top: 10px;
+  font-weight: bold;
+  cursor: pointer;
+}
+
+.audio-enable-button:hover {
+  background-color: #c82333;
+}
+
 .queue-controls {
   display: flex;
   gap: 10px;
@@ -325,14 +351,53 @@
 }
 
 .connection-status {
-  text-align: center;
+  display: flex;
+  justify-content: center;
+  gap: 20px;
   margin-bottom: 15px;
 }
 
-.status-indicator {
+.status-indicator,
+.sync-indicator {
   padding: 8px 15px;
   border-radius: 4px;
   font-weight: bold;
+  display: inline-block;
+}
+
+.sync-indicator {
+  position: relative;
+}
+
+.sync-indicator.synced {
+  background-color: #4299e1;
+  color: white;
+}
+
+.sync-indicator.out-of-sync {
+  background-color: #ed8936;
+  color: white;
+}
+
+.sync-indicator::after {
+  content: '';
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: white;
+  animation: pulse 2s infinite;
+}
+
+.sync-indicator.synced::after {
+  background-color: #90cdf4;
+}
+
+.sync-indicator.out-of-sync::after {
+  background-color: #fbd38d;
 }
 
 .status-indicator.connected {
@@ -378,5 +443,20 @@
   .countdown {
     text-align: left;
     margin-top: 10px;
+  }
+}
+
+@keyframes pulse {
+  0% {
+    opacity: 0.3;
+    transform: translateY(-50%) scale(0.8);
+  }
+  50% {
+    opacity: 1;
+    transform: translateY(-50%) scale(1.2);
+  }
+  100% {
+    opacity: 0.3;
+    transform: translateY(-50%) scale(0.8);
   }
 }

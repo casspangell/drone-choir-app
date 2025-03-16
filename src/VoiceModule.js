@@ -199,9 +199,8 @@ const VoiceModule = forwardRef(({
     return Math.random() * (safeVoiceRange.max - safeVoiceRange.min) + safeVoiceRange.min;
   };
   
-  // Generate a random duration between 3 and 8 seconds
   const generateRandomDuration = () => {
-    return Math.random() * 5 + 3; // 3 to 8 seconds
+    return 10; //Math.random() * 5 + 3; // 3 to 8 seconds
   };
   
   // Generate a new note
@@ -292,15 +291,20 @@ const VoiceModule = forwardRef(({
     const newQueue = audioQueueRef.current.slice(1);
     updateAudioQueue(newQueue);
     
-    // Set current and next note for display
-    setCurrentNote(nextNoteToPlay);
+    // Set next note for display
     setNextNote(newQueue.length > 0 ? newQueue[0] : null);
     
     // Start countdown
     startCountdown(nextNoteToPlay.duration);
     
-    // Play the note
-    playNote(nextNoteToPlay);
+    // Check if this is a scheduled note
+    if (nextNoteToPlay.scheduledStartTime) {
+      // Use scheduled playback
+      playScheduledNote(nextNoteToPlay);
+    } else {
+      // Play the note immediately (traditional way)
+      playNote(nextNoteToPlay);
+    }
   };
 
   const updateAudioQueue = (newQueue) => {
@@ -458,6 +462,101 @@ const VoiceModule = forwardRef(({
       } catch (error) {
         console.error(`Error adjusting volume for ${voiceType}:`, error);
       }
+    }
+  };
+
+  // Play a note at a scheduled time
+  const playScheduledNote = (noteData) => {
+    const ctx = audioContextRef.current;
+    const gainMultiplier = (isSoloMode && !isCurrentSolo) ? 0 : 1;
+
+    if (!ctx) {
+        console.error(`No audio context available for ${voiceType}`);
+        return;
+    }
+    
+    try {
+      // Calculate when to start based on scheduled time
+      let startDelay = 0;
+      
+      if (noteData.scheduledStartTime) {
+        const now = Date.now();
+        const timeUntilStart = noteData.scheduledStartTime - now;
+        
+        // If the scheduled time is in the future, calculate delay
+        if (timeUntilStart > 0) {
+          startDelay = timeUntilStart / 1000; // Convert to seconds for AudioContext
+          console.log(`${voiceType} scheduling note to play in ${startDelay.toFixed(2)} seconds`);
+        } else {
+          // If we're already past the scheduled time, play immediately
+          console.log(`${voiceType} playing note immediately (scheduled time already passed)`);
+        }
+      }
+      
+      // Create new audio nodes
+      const oscillator = ctx.createOscillator();
+      const gainNode = ctx.createGain();
+      
+      // Create an analyser for visualization
+      const analyser = ctx.createAnalyser();
+      analyser.fftSize = 2048;
+      analyserRef.current = analyser;
+      
+      // Set up oscillator
+      oscillator.type = 'sine';
+      oscillator.frequency.setValueAtTime(noteData.frequency, ctx.currentTime + startDelay);
+      
+      // Precise gain control with scheduled timing
+      gainNode.gain.setValueAtTime(0, ctx.currentTime + startDelay);
+      gainNode.gain.linearRampToValueAtTime(0.5 * gainMultiplier, ctx.currentTime + startDelay + 0.5);
+      gainNode.gain.linearRampToValueAtTime(0, ctx.currentTime + startDelay + noteData.duration);
+      
+      // Connect nodes with analyser
+      oscillator.connect(gainNode);
+      gainNode.connect(analyser);
+      analyser.connect(ctx.destination);
+      
+      // Store references
+      oscillatorRef.current = oscillator;
+      gainNodeRef.current = gainNode;
+      
+      // Set up visualization before starting
+      setupVisualization();
+      
+      // Start now but schedule the actual note to begin at the right time
+      oscillator.start();
+      oscillator.stop(ctx.currentTime + startDelay + noteData.duration);
+      
+      console.log(`${voiceType} scheduled note: ${noteData.note} (${noteData.frequency.toFixed(2)} Hz)`);
+      
+      // Update display immediately even though audio will start later
+      setCurrentNote(noteData);
+      
+      // Schedule cleanup
+      oscillator.onended = () => {
+        console.log(`${voiceType} note finished: ${noteData.note} (${noteData.frequency.toFixed(2)} Hz)`);
+
+        oscillator.disconnect();
+        gainNode.disconnect();
+        analyser.disconnect();
+        
+        if (oscillatorRef.current === oscillator) {
+          oscillatorRef.current = null;
+        }
+        if (gainNodeRef.current === gainNode) {
+          gainNodeRef.current = null;
+        }
+        
+        // Stop animation frame
+        if (animationFrameRef.current) {
+          cancelAnimationFrame(animationFrameRef.current);
+          animationFrameRef.current = null;
+        }
+
+        playNextInQueue();
+      };
+    } catch (e) {
+      console.error(`Error playing scheduled note in ${voiceType}:`, e);
     }
   };
   

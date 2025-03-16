@@ -4,6 +4,7 @@ import VoiceModule from './VoiceModule';
 import { startUnison, startAll, stopAll } from './performance';
 import { VOICE_RANGES } from './voiceTypes';
 import useFrequencyStreaming from './useFrequencyStreaming';
+import TimeSyncUtils from './TimeSyncUtils';
 
 const DroneChoirPerformer = () => {
   // Use the streaming hook
@@ -20,6 +21,8 @@ const DroneChoirPerformer = () => {
   const [isAllPlaying, setIsAllPlaying] = useState(false);
   const [soloVoice, setSoloVoice] = useState(null);
   const [isSolo, setIsSolo] = useState(false);
+  const [syncStatus, setSyncStatus] = useState({ synced: false, offset: 0 });
+  const [audioContextState, setAudioContextState] = useState('unknown');
   
   // Create refs to access the voice module methods
   const voiceModuleRefs = {
@@ -42,9 +45,38 @@ const DroneChoirPerformer = () => {
     return sharedAudioContext;
   }, [sharedAudioContext]);
 
-  // Sync with server voice states
   useEffect(() => {
+  if (sharedAudioContext) {
+    setAudioContextState(sharedAudioContext.state);
+    
+    // Add an event listener to detect state changes
+    const handleStateChange = () => {
+      setAudioContextState(sharedAudioContext.state);
+    };
+    
+    sharedAudioContext.addEventListener('statechange', handleStateChange);
+    
+    return () => {
+      sharedAudioContext.removeEventListener('statechange', handleStateChange);
+    };
+  }
+}, [sharedAudioContext]);
+
+  // to monitor sync status
+  useEffect(() => {
+    // Check sync status periodically
+    const syncCheckInterval = setInterval(() => {
+      const status = TimeSyncUtils.getSyncStatus();
+      setSyncStatus(status);
+    }, 5000);
+    
+    return () => clearInterval(syncCheckInterval);
+  }, []);
+
+  // Sync with server voice states
+    useEffect(() => {
     if (Object.keys(voiceStates).length > 0) {
+      ensureAudioContextRunning();
       let anyPlaying = false;
       
       // Update each voice module with server state
@@ -67,6 +99,7 @@ const DroneChoirPerformer = () => {
               
               // Start the voice if it's not already playing
               if (!ref.current.isPlaying) {
+                console.log(`Starting ${voiceType} based on server state`);
                 ref.current.startPerformance(sharedAudioContext || initSharedAudioContext());
               }
             }
@@ -81,6 +114,17 @@ const DroneChoirPerformer = () => {
       setIsAllPlaying(anyPlaying);
     }
   }, [voiceStates, initSharedAudioContext, sharedAudioContext]);
+
+  const ensureAudioContextRunning = useCallback(() => {
+    if (sharedAudioContext && sharedAudioContext.state === 'suspended') {
+      console.log('Attempting to resume suspended audio context');
+      sharedAudioContext.resume().then(() => {
+        console.log('Audio context resumed successfully');
+      }).catch(err => {
+        console.error('Failed to resume audio context:', err);
+      });
+    }
+  }, [sharedAudioContext]);
 
   const handleVoiceSelection = (voiceType) => {
     if (soloVoice === voiceType) {
@@ -128,12 +172,51 @@ const DroneChoirPerformer = () => {
     }
   }, [isAllPlaying, startFrequencyStream, stopAllStreams, initSharedAudioContext]);
   
+  // Function to start all voices on a scheduled note
+  const startUnisonScheduled = (voiceModuleRefs, initSharedAudioContext, setIsAllPlaying, unisonNote) => {
+    console.log(`Starting all voices on fixed pitch at scheduled time: ${new Date(unisonNote.scheduledStartTime).toISOString()}`);
+    
+    // Initialize the shared audio context
+    const ctx = initSharedAudioContext();
+    
+    // Clear existing queues in all voice modules and add the common note
+    Object.entries(voiceModuleRefs).forEach(([voiceType, ref]) => {
+      if (ref.current) {
+        // First clear the queue
+        ref.current.clearQueue();
+        // Then add the common note
+        ref.current.addSpecificNote(unisonNote);
+      }
+    });
+    
+    // Start all modules with the shared context
+    Object.values(voiceModuleRefs).forEach(ref => {
+      if (ref.current && ref.current.startPerformance) {
+        ref.current.startPerformance(ctx);
+      }
+    });
+    
+    setIsAllPlaying(true);
+  };
+  
   // Handle unison start button click
   const handleUnisonStart = useCallback(() => {
     // Common pitch for unison
     const commonPitch = 220; // A3
     const noteName = 'A3';
+
+    // Calculate a start time in the future to allow for network latency
+    // We'll schedule it 1.5 seconds in the future to ensure all clients have time to receive the message
+    const scheduledStartTime = TimeSyncUtils.getEstimatedServerTime() + 1500;
     
+    // Create the unison note with scheduled time
+    const unisonNote = {
+      frequency: commonPitch,
+      duration: 10,
+      note: noteName,
+      scheduledStartTime: scheduledStartTime
+    };
+  
     // Call the unison API endpoint
     fetch('http://localhost:8080/api/unison', {
       method: 'POST',
@@ -141,7 +224,8 @@ const DroneChoirPerformer = () => {
       body: JSON.stringify({
         pitch: commonPitch,
         note: noteName,
-        duration: 10
+        duration: 10,
+        scheduledStartTime: scheduledStartTime
       })
     }).catch(error => console.error('Error setting unison:', error));
     
@@ -150,7 +234,8 @@ const DroneChoirPerformer = () => {
       startFrequencyStream(voiceConfig.id);
     });
     
-    startUnison(voiceModuleRefs, initSharedAudioContext, setIsAllPlaying);
+    // Start the scheduled unison performance
+    startUnisonScheduled(voiceModuleRefs, initSharedAudioContext, setIsAllPlaying, unisonNote);
   }, [startFrequencyStream, initSharedAudioContext]);
 
   // Handle note queue updates
@@ -160,22 +245,43 @@ const DroneChoirPerformer = () => {
   }, [updateNotes]);
 
   return (
-    <div className="drone-choir-multi">
-      {/* Connection status and error handling */}
-      {error && (
-        <div className="connection-error">
-          <p>Streaming Error: {error.message || 'Connection failed'}</p>
-        </div>
-      )}
-
-      {/* Streaming connection status */}
+  <div className="drone-choir-multi">
+  <div style={{padding: '10px', backgroundColor: '#f0f0f0', marginBottom: '10px', textAlign: 'center'}}>
+  Current Audio Context State: {audioContextState || 'No AudioContext'}
+</div>
+    {/* Audio context warning */}
+    {audioContextState === 'suspended' && (
+      <div className="audio-warning">
+        <p>Click or tap anywhere on the page to enable audio playback</p>
+        <button 
+          onClick={() => sharedAudioContext?.resume()}
+          className="audio-enable-button"
+        >
+          Enable Audio
+        </button>
+      </div>
+    )}
+      {/* Connection and sync status display */}
       <div className="connection-status">
         <span 
           className={`status-indicator ${isConnected ? 'connected' : 'disconnected'}`}
         >
           {isConnected ? 'Streaming: Connected' : 'Streaming: Disconnected'}
         </span>
+        <span 
+          className={`sync-indicator ${syncStatus.synced ? 'synced' : 'out-of-sync'}`}
+          title={`Time offset: ${syncStatus.offset.toFixed(0)}ms`}
+        >
+          {syncStatus.synced ? 'Time Synced' : 'Not Synced'}
+        </span>
       </div>
+      
+      {/* Connection status and error handling */}
+      {error && (
+        <div className="connection-error">
+          <p>Streaming Error: {error.message || 'Connection failed'}</p>
+        </div>
+      )}
 
       {/* Master controls */}
       <div className="master-controls">
