@@ -146,6 +146,21 @@ const VoiceModule = forwardRef(({
     get isSelected() {
       return isSelected;
     },
+    addSpecificNoteToQueue: (note) => {
+      updateAudioQueue(prevQueue => {
+        // Only add if the note is not already in the queue
+        const isNoteAlreadyInQueue = prevQueue.some(
+          existingNote => existingNote.note === note.note
+        );
+        
+        if (!isNoteAlreadyInQueue) {
+          console.log(`${voiceType} adding note to queue: ${note.note}`);
+          return [...prevQueue, note];
+        }
+        
+        return prevQueue;
+      });
+    },
     setDashboardMute: (muted) => {
         setIsDashboardMuted(muted);
         

@@ -2,8 +2,8 @@ import React, { useState, useRef, useCallback, useEffect } from 'react';
 import './DroneChoirPerformer.css';
 import VoiceModule from './VoiceModule';
 import { startUnison, startAll, stopAll } from './performance';
-import { VOICE_RANGES } from './voiceTypes';
 import socketManager from './DroneSocketManager';
+import { VOICE_RANGES, generateRandomNote } from './voiceTypes';
 
 const DroneChoirPerformer = () => {
   // State for controlling all modules
@@ -164,90 +164,108 @@ const DroneChoirPerformer = () => {
   };
   
   // Apply state for a specific voice
-  const applyVoiceState = (voiceType, voiceState) => {
-    // Add debugging logs
-    console.log(`Applying voice state for ${voiceType}:`, 
-                voiceState.isPlaying ? 'playing' : 'stopped',
-                voiceState.currentNote?.note);
-    
-    const voiceRef = voiceModuleRefs[voiceType]?.current;
-    if (!voiceRef) {
-      console.error(`No ref for ${voiceType}`);
-      return;
-    }
-    
-    try {
-      // Apply received state to the voice module
-      if (voiceState.isPlaying && !voiceRef.isPlaying) {
-        console.log(`Starting ${voiceType} with note:`, voiceState.currentNote?.note);
-        // Only start if it's not already playing
-        if (voiceState.currentNote) {
-          voiceRef.clearQueue();
-          voiceRef.addSpecificNote(voiceState.currentNote);
-          voiceRef.startPerformance();
-        } else {
-          console.warn(`${voiceType} should play but no current note provided`);
-        }
-      } else if (!voiceState.isPlaying && voiceRef.isPlaying) {
-        console.log(`Stopping ${voiceType}`);
-        // Stop if it's playing but shouldn't be
-        voiceRef.stopPerformance();
-      } else {
-        console.log(`No change needed for ${voiceType}`, 
-                    voiceState.isPlaying ? 'playing' : 'stopped',
-                    voiceRef.isPlaying ? 'playing' : 'stopped');
-      }
-    } catch (error) {
-      console.error(`Error applying voice state for ${voiceType}:`, error);
-    }
-  };
+const applyVoiceState = (voiceType, voiceState) => {
+  console.log(`Applying voice state for ${voiceType}:`, 
+              voiceState.isPlaying ? 'playing' : 'stopped',
+              voiceState.currentNote?.note);
   
-  const broadcastState = () => {
-    if (viewMode !== 'controller') return;
+  const voiceRef = voiceModuleRefs[voiceType]?.current;
+  if (!voiceRef) {
+    console.error(`No ref for ${voiceType}`);
+    return;
+  }
+  
+  try {
+    // Always log the full received state for debugging
+    console.log('Full received voice state:', JSON.stringify(voiceState, null, 2));
     
-    // Gather state from all voice modules
-    const voices = {};
-    let anyVoicePlaying = false;  // Add this line
-    
-    Object.entries(voiceModuleRefs).forEach(([voiceType, ref]) => {
-      if (!ref.current) return;
-      
-      const isVoicePlaying = ref.current.isPlaying || false;
-      const currentNote = ref.current.getCurrentNote?.() || null;
-      
-      // Track if any voice is playing
-      if (isVoicePlaying) {
-        anyVoicePlaying = true;
+    // Check if there's a current note to play
+    if (voiceState.currentNote) {
+      if (!voiceRef.isPlaying) {
+        console.log(`Starting ${voiceType} with note:`, voiceState.currentNote.note);
+        voiceRef.clearQueue();
+        voiceRef.addSpecificNote(voiceState.currentNote);
+        
+        // If there's a next note, add it to the queue
+        if (voiceState.nextNote) {
+          voiceRef.addSpecificNoteToQueue(voiceState.nextNote);
+        }
+        
+        voiceRef.startPerformance();
+      } else {
+        // If already playing, check if we need to update the queue
+        if (voiceState.nextNote) {
+          console.log(`Adding next note to ${voiceType} queue:`, voiceState.nextNote.note);
+          voiceRef.addSpecificNoteToQueue(voiceState.nextNote);
+        }
       }
-      
-      voices[voiceType] = {
-        isPlaying: isVoicePlaying,
-        currentNote: currentNote,
-        nextNote: ref.current.getNextNote?.() || null
-      };
-      
-      console.log(`${voiceType} state for broadcast:`, isVoicePlaying ? 'playing' : 'stopped', currentNote?.note);
-    });
+    } else if (voiceRef.isPlaying) {
+      console.log(`Stopping ${voiceType} as no current note is present`);
+      voiceRef.stopPerformance();
+    }
+  } catch (error) {
+    console.error(`Error applying voice state for ${voiceType}:`, error);
+  }
+};
+  
+const broadcastState = () => {
+  if (viewMode !== 'controller') return;
+  
+  const voices = {};
+  let anyVoicePlaying = false;
+  
+  Object.entries(voiceModuleRefs).forEach(([voiceType, ref]) => {
+    if (!ref.current) return;
     
-    // Update global playing state if it doesn't match
-    if (anyVoicePlaying !== isAllPlaying) {
-      setIsAllPlaying(anyVoicePlaying);
+    const isVoicePlaying = ref.current.isPlaying || false;
+    const currentNote = ref.current.getCurrentNote?.() || null;
+    const nextNote = ref.current.getNextNote?.() || null;
+    const queue = ref.current.getFullQueue?.() || [];
+    
+    // Track if any voice is playing
+    if (isVoicePlaying) {
+      anyVoicePlaying = true;
     }
     
-    // Create complete state object
-    const state = {
-      isPlaying: anyVoicePlaying, // Use the detected state instead of isAllPlaying
-      soloVoice,
-      voices,
-      timestamp: Date.now()
+    // Always try to include a next note
+    const includeNextNote = nextNote || 
+      (isVoicePlaying && ref.current.autoGenerate ? 
+        generateRandomNote(VOICE_RANGES[voiceType]) : 
+        (queue.length > 0 ? queue[0] : null));
+    
+    voices[voiceType] = {
+      isPlaying: isVoicePlaying,
+      currentNote: currentNote,
+      nextNote: includeNextNote,
+      queue: queue
     };
     
-    console.log("Broadcasting state:", state.isPlaying ? 'playing' : 'stopped', 
-                Object.keys(voices).map(v => `${v}: ${voices[v].isPlaying ? 'playing' : 'stopped'}`).join(', '));
-    
-    // Send to server
-    socketManager.updateState(state);
+    console.log(`${voiceType} state for broadcast:`, 
+                isVoicePlaying ? 'playing' : 'stopped', 
+                currentNote?.note, 
+                `nextNote: ${includeNextNote?.note || 'none'}`,
+                `queue length: ${queue.length}`);
+  });
+  
+  // Update global playing state if it doesn't match
+  if (anyVoicePlaying !== isAllPlaying) {
+    setIsAllPlaying(anyVoicePlaying);
+  }
+  
+  // Create complete state object
+  const state = {
+    isPlaying: anyVoicePlaying,
+    soloVoice,
+    voices,
+    timestamp: Date.now()
   };
+  
+  console.log("Broadcasting state:", state.isPlaying ? 'playing' : 'stopped', 
+              Object.keys(voices).map(v => `${v}: ${voices[v].isPlaying ? 'playing' : 'stopped'}`).join(', '));
+  
+  // Send to server
+  socketManager.updateState(state);
+};
 
   const handleSoloToggle = useCallback((voiceType, isSolo) => {
     if (viewMode !== 'controller') return;
