@@ -1,88 +1,106 @@
+// DroneSocketManager.js
 import { io } from 'socket.io-client';
 
 class DroneSocketManager {
   constructor() {
     this.socket = null;
     this.isConnected = false;
-    this.isController = false;
+    this.type = null; // 'controller' or 'viewer'
     this.listeners = {};
-    this.heartbeatInterval = null;
+    this.pollInterval = null;
   }
   
-  /**
-   * Connect to the socket server
-   */
+  // Connect to the WebSocket server
   connect() {
-    // Connect to the server (automatically uses the current host)
+    if (this.socket) return;
+    
+    // Connect to the socket server
     this.socket = io();
     
-    // Set up event handlers
-    this.socket.on('connect', this.handleConnect.bind(this));
-    this.socket.on('disconnect', this.handleDisconnect.bind(this));
-    this.socket.on('registration-success', this.handleRegistrationSuccess.bind(this));
-    this.socket.on('registration-failed', this.handleRegistrationFailed.bind(this));
-    this.socket.on('state-updated', this.handleStateUpdate.bind(this));
-    this.socket.on('controller-status', this.handleControllerStatus.bind(this));
-    this.socket.on('controller-heartbeat', this.handleControllerHeartbeat.bind(this));
+    // Set up connection events
+    this.socket.on('connect', () => {
+      console.log('Connected to socket server');
+      this.isConnected = true;
+      this.notifyListeners('connect');
+    });
+    
+    this.socket.on('disconnect', () => {
+      console.log('Disconnected from socket server');
+      this.isConnected = false;
+      this.notifyListeners('disconnect');
+    });
+    
+    // Handle registration response
+    this.socket.on('registration-success', (data) => {
+      console.log('Registration successful:', data);
+      this.type = data.type;
+      
+      if (data.initialState) {
+        this.notifyListeners('initial-state', data.initialState);
+      }
+      
+      this.notifyListeners('registered', data);
+    });
+    
+    // Handle state updates
+    this.socket.on('state-updated', (data) => {
+      this.notifyListeners('state-updated', data);
+    });
+    
+    // Handle specific voice state updates
+    this.socket.on('voice-state', (data) => {
+      this.notifyListeners('voice-state', data);
+    });
   }
   
-  /**
-   * Register as controller or viewer
-   * @param {string} type - 'controller' or 'viewer'
-   */
-  register(type) {
+  // Register as a controller (main dashboard) or viewer (single voice)
+  register(type, voiceType = null) {
     if (!this.isConnected) {
-      console.warn('Not connected to server');
+      console.warn('Not connected to server, cannot register');
       return;
     }
     
-    this.socket.emit('register', { type });
+    this.socket.emit('register', { 
+      type,
+      voiceType
+    });
+    
+    // If this is a viewer with a specific voice, start polling
+    if (type === 'viewer' && voiceType) {
+      this.startPolling(voiceType);
+    }
   }
   
-  /**
-   * Send state update to server (controller only)
-   * @param {Object} state - Current state
-   */
-  updateState(state) {
-    if (!this.isConnected || !this.isController) {
-      return;
+  // Start polling for a specific voice's state
+  startPolling(voiceType) {
+    if (this.pollInterval) {
+      clearInterval(this.pollInterval);
     }
+    
+    // Request state for this voice every second
+    this.pollInterval = setInterval(() => {
+      if (this.isConnected) {
+        this.socket.emit('request-voice-state', voiceType);
+      }
+    }, 1000);
+  }
+  
+  // Stop polling
+  stopPolling() {
+    if (this.pollInterval) {
+      clearInterval(this.pollInterval);
+      this.pollInterval = null;
+    }
+  }
+  
+  // Send state update to the server (controller only)
+  updateState(state) {
+    if (!this.isConnected || this.type !== 'controller') return;
     
     this.socket.emit('state-update', state);
   }
   
-  /**
-   * Start sending heartbeat to server (controller only)
-   */
-  startHeartbeat() {
-    if (!this.isController) return;
-    
-    // Clear any existing interval
-    if (this.heartbeatInterval) {
-      clearInterval(this.heartbeatInterval);
-    }
-    
-    // Send heartbeat every second
-    this.heartbeatInterval = setInterval(() => {
-      this.socket.emit('heartbeat');
-    }, 1000);
-  }
-  
-  /**
-   * Stop sending heartbeat to server
-   */
-  stopHeartbeat() {
-    if (this.heartbeatInterval) {
-      clearInterval(this.heartbeatInterval);
-      this.heartbeatInterval = null;
-    }
-  }
-  
-  /**
-   * Add event listener
-   * @param {string} event - Event name
-   * @param {Function} callback - Callback function
-   */
+  // Add event listener
   on(event, callback) {
     if (!this.listeners[event]) {
       this.listeners[event] = [];
@@ -91,22 +109,14 @@ class DroneSocketManager {
     this.listeners[event].push(callback);
   }
   
-  /**
-   * Remove event listener
-   * @param {string} event - Event name
-   * @param {Function} callback - Callback function
-   */
+  // Remove event listener
   off(event, callback) {
     if (!this.listeners[event]) return;
     
     this.listeners[event] = this.listeners[event].filter(cb => cb !== callback);
   }
   
-  /**
-   * Notify all listeners of an event
-   * @param {string} event - Event name
-   * @param {*} data - Event data
-   */
+  // Notify listeners of an event
   notifyListeners(event, data) {
     if (!this.listeners[event]) return;
     
@@ -119,83 +129,16 @@ class DroneSocketManager {
     });
   }
   
-  /**
-   * Handle socket connection
-   */
-  handleConnect() {
-    console.log('Connected to server');
-    this.isConnected = true;
-    this.notifyListeners('connect', null);
-  }
-  
-  /**
-   * Handle socket disconnection
-   */
-  handleDisconnect() {
-    console.log('Disconnected from server');
-    this.isConnected = false;
-    this.isController = false;
-    this.stopHeartbeat();
-    this.notifyListeners('disconnect', null);
-  }
-  
-  /**
-   * Handle successful registration
-   * @param {Object} data - Registration data
-   */
-  handleRegistrationSuccess(data) {
-    console.log('Registration successful:', data);
-    
-    if (data.type === 'controller') {
-      this.isController = true;
-      this.startHeartbeat();
-    }
-    
-    this.notifyListeners('registration-success', data);
-  }
-  
-  /**
-   * Handle failed registration
-   * @param {Object} data - Error data
-   */
-  handleRegistrationFailed(data) {
-    console.warn('Registration failed:', data);
-    this.notifyListeners('registration-failed', data);
-  }
-  
-  /**
-   * Handle state update from server
-   * @param {Object} state - New state
-   */
-  handleStateUpdate(state) {
-    this.notifyListeners('state-updated', state);
-  }
-  
-  /**
-   * Handle controller status update
-   * @param {Object} data - Controller status data
-   */
-  handleControllerStatus(data) {
-    this.notifyListeners('controller-status', data);
-  }
-  
-  /**
-   * Handle controller heartbeat
-   * @param {Object} data - Heartbeat data
-   */
-  handleControllerHeartbeat(data) {
-    this.notifyListeners('controller-heartbeat', data);
-  }
-  
-  /**
-   * Disconnect from the server
-   */
+  // Disconnect from the server
   disconnect() {
+    this.stopPolling();
+    
     if (this.socket) {
-      this.stopHeartbeat();
       this.socket.disconnect();
       this.socket = null;
     }
+    
+    this.isConnected = false;
   }
 }
 

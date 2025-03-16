@@ -62,3 +62,62 @@ server.listen(PORT, '0.0.0.0', () => {
     console.log('\nNo network interfaces found. Try connecting with your local IP address.');
   }
 });
+
+// Socket.IO connection handler
+io.on('connection', (socket) => {
+  console.log('New client connected:', socket.id);
+  
+  // Store current state to share with new clients
+  let currentState = {
+    isPlaying: false,
+    voices: {
+      soprano: { isPlaying: false, currentNote: null, nextNote: null },
+      alto: { isPlaying: false, currentNote: null, nextNote: null },
+      tenor: { isPlaying: false, currentNote: null, nextNote: null },
+      bass: { isPlaying: false, currentNote: null, nextNote: null }
+    }
+  };
+  
+  // Handle client registration
+  socket.on('register', (data) => {
+    console.log('Client registered:', data);
+    
+    if (data.type === 'controller') {
+      // This is the main dashboard
+      socket.join('controllers');
+      socket.emit('registration-success', { type: 'controller' });
+    } else if (data.type === 'viewer') {
+      // This is a single voice page
+      socket.join('viewers');
+      socket.emit('registration-success', { 
+        type: 'viewer',
+        initialState: currentState
+      });
+    }
+  });
+  
+  // Handle state updates from controller (main dashboard)
+  socket.on('state-update', (newState) => {
+    // Store the updated state
+    currentState = newState;
+    
+    // Broadcast to all viewers
+    socket.to('viewers').emit('state-updated', newState);
+  });
+  
+  // Handle specific voice requests
+  socket.on('request-voice-state', (voiceType) => {
+    // Send the state for the requested voice
+    if (currentState.voices[voiceType]) {
+      socket.emit('voice-state', {
+        voiceType,
+        state: currentState.voices[voiceType]
+      });
+    }
+  });
+  
+  // Handle disconnection
+  socket.on('disconnect', () => {
+    console.log('Client disconnected:', socket.id);
+  });
+});

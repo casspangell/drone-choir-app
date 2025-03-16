@@ -1,16 +1,17 @@
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useRef, useCallback, useEffect } from 'react';
 import './DroneChoirPerformer.css';
 import VoiceModule from './VoiceModule';
 import { startUnison, startAll, stopAll } from './performance';
 import { VOICE_RANGES } from './voiceTypes';
-import { useEffect } from 'react';
+import socketManager from './DroneSocketManager';
 
 const DroneChoirPerformer = () => {
-
   // State for controlling all modules
   const [isAllPlaying, setIsAllPlaying] = useState(false);
   const [soloVoice, setSoloVoice] = useState(null);
   const [singleVoiceMode, setSingleVoiceMode] = useState(null);
+  const [isConnected, setIsConnected] = useState(false);
+  const [viewMode, setViewMode] = useState(null); // 'controller' or 'viewer'
   
   // Create refs to access the voice module methods
   const voiceModuleRefs = {
@@ -19,51 +20,16 @@ const DroneChoirPerformer = () => {
     tenor: useRef(),
     bass: useRef()
   };
-
+  
+  // Mapping for URL parameters to voice types
   const voiceRangeMapping = {
     'high': 'soprano',
     'mid-high': 'alto',
     'low-mid': 'tenor',
     'low': 'bass'
   };
-
-  const getRangeLabel = (voiceType) => {
-    return Object.entries(voiceRangeMapping).find(
-      ([_, value]) => value === voiceType
-    )?.[0]?.toUpperCase() || 'VOICE';
-  };
   
-  const handleSoloToggle = useCallback((voiceType, isSolo) => {
-    console.log('Solo toggle called:', { voiceType, isSolo });
-    
-    if (isSolo) {
-      setSoloVoice(voiceType);
-      
-    } else {
-      setSoloVoice(null);
-    }
-  }, []);
-  
-  // Initialize shared audio context for all voice modules
-  const initSharedAudioContext = () => {
-    return new (window.AudioContext || window.webkitAudioContext)();
-  };
-  
-  // Handle start unison button click
-  const handleStartUnison = () => {
-    startUnison(voiceModuleRefs, initSharedAudioContext, setIsAllPlaying);
-  };
-  
-  // Handle start all button click
-  const handleStartAll = () => {
-    startAll(voiceModuleRefs, initSharedAudioContext, setIsAllPlaying);
-  };
-  
-  // Handle stop all button click
-  const handleStopAll = () => {
-    stopAll(voiceModuleRefs, setIsAllPlaying);
-  };
-
+  // Effect for checking URL query parameters and detecting single voice mode
   useEffect(() => {
     // Check URL for voice range parameter
     const queryParams = new URLSearchParams(window.location.search);
@@ -84,40 +50,249 @@ const DroneChoirPerformer = () => {
     
     console.log('Range params checked:', rangeParams);
   }, []);
-
-    if (singleVoiceMode && VOICE_RANGES[singleVoiceMode]) {
-    console.log('Rendering single voice mode for:', singleVoiceMode);
+  
+  // Connect to socket server and set up listeners
+  useEffect(() => {
+    // Connect to the socket server
+    socketManager.connect();
+    
+    // Set up socket event listeners
+    socketManager.on('connect', () => {
+      setIsConnected(true);
+    });
+    
+    socketManager.on('disconnect', () => {
+      setIsConnected(false);
+    });
+    
+    socketManager.on('registered', (data) => {
+      setViewMode(data.type);
+    });
+    
+    socketManager.on('initial-state', (state) => {
+      // Apply initial state from server
+      applyReceivedState(state);
+    });
+    
+    socketManager.on('state-updated', (state) => {
+      // Apply state updates from server
+      applyReceivedState(state);
+    });
+    
+    socketManager.on('voice-state', (data) => {
+      // Apply state for a specific voice
+      applyVoiceState(data.voiceType, data.state);
+    });
+    
+    // Clean up on unmount
+    return () => {
+      socketManager.disconnect();
+    };
+  }, []);
+  
+  // Register as controller or viewer when connected
+  useEffect(() => {
+    if (!isConnected) return;
+    
+    if (singleVoiceMode) {
+      // Register as a viewer for a specific voice
+      socketManager.register('viewer', singleVoiceMode);
+    } else {
+      // Register as the main controller
+      socketManager.register('controller');
+    }
+  }, [isConnected, singleVoiceMode]);
+  
+  // Broadcast state updates to server (from controller)
+  useEffect(() => {
+    if (viewMode !== 'controller') return;
+    
+    // Set up periodic state broadcasting
+    const broadcastInterval = setInterval(() => {
+      broadcastState();
+    }, 1000);
+    
+    return () => {
+      clearInterval(broadcastInterval);
+    };
+  }, [viewMode]);
+  
+  // Apply received state from server
+  const applyReceivedState = (state) => {
+    if (!state) return;
+    
+    if (viewMode === 'viewer') {
+      // Update global state
+      setIsAllPlaying(state.isPlaying);
+      setSoloVoice(state.soloVoice);
+      
+      // Update individual voice modules
+      Object.entries(state.voices || {}).forEach(([voiceType, voiceState]) => {
+        // Skip if we're in single voice mode and this isn't our voice
+        if (singleVoiceMode && voiceType !== singleVoiceMode) return;
+        
+        applyVoiceState(voiceType, voiceState);
+      });
+    }
+  };
+  
+  // Apply state for a specific voice
+  const applyVoiceState = (voiceType, voiceState) => {
+    const voiceRef = voiceModuleRefs[voiceType]?.current;
+    if (!voiceRef) return;
+    
+    try {
+      // Apply received state to the voice module
+      if (voiceState.isPlaying && !voiceRef.isPlaying) {
+        // Only start if it's not already playing
+        if (voiceState.currentNote) {
+          voiceRef.clearQueue();
+          voiceRef.addSpecificNote(voiceState.currentNote);
+          voiceRef.startPerformance();
+        }
+      } else if (!voiceState.isPlaying && voiceRef.isPlaying) {
+        // Stop if it's playing but shouldn't be
+        voiceRef.stopPerformance();
+      }
+      
+      // For viewers, disable auto-generation
+      if (viewMode === 'viewer' && voiceRef.autoGenerate) {
+        voiceRef.stopAutoGeneration();
+      }
+    } catch (error) {
+      console.error(`Error applying voice state for ${voiceType}:`, error);
+    }
+  };
+  
+  // Broadcast current state to server
+  const broadcastState = () => {
+    if (viewMode !== 'controller') return;
+    
+    // Gather state from all voice modules
+    const voices = {};
+    Object.entries(voiceModuleRefs).forEach(([voiceType, ref]) => {
+      if (!ref.current) return;
+      
+      voices[voiceType] = {
+        isPlaying: ref.current.isPlaying || false,
+        currentNote: ref.current.getCurrentNote?.() || null,
+        nextNote: ref.current.getNextNote?.() || null
+      };
+    });
+    
+    // Create complete state object
+    const state = {
+      isPlaying: isAllPlaying,
+      soloVoice,
+      voices,
+      timestamp: Date.now()
+    };
+    
+    // Send to server
+    socketManager.updateState(state);
+  };
+  
+  const handleSoloToggle = useCallback((voiceType, isSolo) => {
+    if (viewMode !== 'controller') return;
+    
+    console.log('Solo toggle called:', { voiceType, isSolo });
+    
+    if (isSolo) {
+      setSoloVoice(voiceType);
+    } else {
+      setSoloVoice(null);
+    }
+    
+    // Broadcast state after change
+    setTimeout(broadcastState, 100);
+  }, [viewMode]);
+  
+  // Initialize shared audio context for all voice modules
+  const initSharedAudioContext = useCallback(() => {
+    return new (window.AudioContext || window.webkitAudioContext)();
+  }, []);
+  
+  // Handle start unison button click
+  const handleStartUnison = useCallback(() => {
+    if (viewMode !== 'controller') return;
+    
+    startUnison(voiceModuleRefs, initSharedAudioContext, setIsAllPlaying);
+    
+    // Broadcast state after change
+    setTimeout(broadcastState, 100);
+  }, [viewMode]);
+  
+  // Handle start all button click
+  const handleStartAll = useCallback(() => {
+    if (viewMode !== 'controller') return;
+    
+    startAll(voiceModuleRefs, initSharedAudioContext, setIsAllPlaying);
+    
+    // Broadcast state after change
+    setTimeout(broadcastState, 100);
+  }, [viewMode]);
+  
+  // Handle stop all button click
+  const handleStopAll = useCallback(() => {
+    if (viewMode !== 'controller') return;
+    
+    stopAll(voiceModuleRefs, setIsAllPlaying);
+    
+    // Broadcast state after change
+    setTimeout(broadcastState, 100);
+  }, [viewMode]);
+  
+  // Helper function to get range label
+  const getRangeLabel = (voiceType) => {
+    return Object.entries(voiceRangeMapping).find(
+      ([_, value]) => value === voiceType
+    )?.[0]?.toUpperCase() || 'VOICE';
+  };
+  
+  // If in single voice mode, render only that voice module
+  if (singleVoiceMode && VOICE_RANGES[singleVoiceMode]) {
     const voiceType = singleVoiceMode;
     const range = VOICE_RANGES[voiceType];
+    const rangeLabel = getRangeLabel(voiceType);
     
     return (
       <div className="drone-choir-single">
-        <h1>
-          {Object.entries(voiceRangeMapping).find(([_, value]) => value === voiceType)?.[0]?.toUpperCase() || 'VOICE'} VOICE 
-        </h1>
+        <h1>{rangeLabel} VOICE</h1>
         <div className="single-voice-container">
           <VoiceModule 
             key={voiceType}
             voiceType={voiceType} 
             voiceRange={range}
-            rangeLabel={getRangeLabel(voiceType)} 
+            rangeLabel={rangeLabel}
             ref={voiceModuleRefs[voiceType]}
             onPlayStateChange={(isPlaying) => {
-              // Check if any module is still playing when one stops
-              if (!isPlaying) {
-                setIsAllPlaying(false);
-              }
+              // Only controller can change play state
+              if (viewMode !== 'controller') return;
+              
+              // Broadcast state after change
+              setTimeout(broadcastState, 100);
             }}
             onSoloToggle={handleSoloToggle}
             isSoloMode={false}
             isCurrentSolo={false}
+            isViewerMode={viewMode === 'viewer'}
             isSingleMode={true}
           />
         </div>
       </div>
     );
   }
+  
+  // If not connected yet, show connecting message
+  if (!isConnected) {
+    return (
+      <div className="connecting-message">
+        <h2>Connecting to server...</h2>
+      </div>
+    );
+  }
 
+  // Regular full view with all voice modules
   return (
     <div className="drone-choir-multi">
       {/* Master controls */}
@@ -125,21 +300,21 @@ const DroneChoirPerformer = () => {
         <button 
           className="master-control-button initial" 
           onClick={handleStartUnison}
-          disabled={isAllPlaying}
+          disabled={isAllPlaying || viewMode !== 'controller'}
         >
           Start on A Note (10s)
         </button>
         <button 
           className="master-control-button start" 
           onClick={handleStartAll}
-          disabled={isAllPlaying}
+          disabled={isAllPlaying || viewMode !== 'controller'}
         >
           Start All Voices
         </button>
         <button 
           className="master-control-button stop" 
           onClick={handleStopAll}
-          disabled={!isAllPlaying}
+          disabled={!isAllPlaying || viewMode !== 'controller'}
         >
           Stop All Voices
         </button>
@@ -155,6 +330,9 @@ const DroneChoirPerformer = () => {
             rangeLabel={getRangeLabel(voiceType)}
             ref={voiceModuleRefs[voiceType]}
             onPlayStateChange={(isPlaying) => {
+              // Only controller can change play state
+              if (viewMode !== 'controller') return;
+              
               // Check if any module is still playing when one stops
               if (!isPlaying) {
                 const anyStillPlaying = Object.values(voiceModuleRefs).some(
@@ -165,10 +343,14 @@ const DroneChoirPerformer = () => {
                   setIsAllPlaying(false);
                 }
               }
+              
+              // Broadcast state after change
+              setTimeout(broadcastState, 100);
             }}
             onSoloToggle={handleSoloToggle}
             isSoloMode={soloVoice !== null}
             isCurrentSolo={soloVoice === voiceType}
+            isViewerMode={viewMode === 'viewer'}
           />
         ))}
       </div>
