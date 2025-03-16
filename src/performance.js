@@ -1,31 +1,33 @@
 // Contains all performance-related functionality for the Drone Choir system
 
-import { getNoteName } from './voiceTypes';
+import { VOICE_RANGES, getNoteName } from './voiceTypes';
 
-// Start all voice modules on the same pitch for 10 seconds
+// Start all voice modules on the A note appropriate for each voice for 10 seconds
 const startUnison = (voiceModuleRefs, initSharedAudioContext, setIsAllPlaying) => {
-  const commonPitch = 220; // A3
-  const noteName = getNoteName(commonPitch);
-  
-  console.log(`Starting all voices on fixed pitch: ${noteName} (${commonPitch.toFixed(2)} Hz)`);
+  console.log('Starting all voices on their respective A notes for 10 seconds');
   
   // Initialize the shared audio context
   const ctx = initSharedAudioContext();
   
-  // Create the common note for all voice parts
-  const commonNote = {
-    frequency: commonPitch,
-    duration: 10, // 10 seconds
-    note: noteName
-  };
-  
-  // Clear existing queues in all voice modules and add the common note
+  // Clear existing queues in all voice modules
   Object.entries(voiceModuleRefs).forEach(([voiceType, ref]) => {
     if (ref.current) {
       // First clear the queue
       ref.current.clearQueue();
-      // Then add the common note
-      ref.current.addSpecificNote(commonNote);
+      
+      // Get the appropriate A note for this voice type from VOICE_RANGES
+      const voiceRange = VOICE_RANGES[voiceType];
+      
+      // Create the note for this voice part
+      const voiceNote = {
+        frequency: voiceRange.hertz, // Use the predefined A note frequency
+        duration: 10, // 10 seconds
+        note: voiceRange.note // Use the predefined A note name
+      };
+      
+      // Add the voice-specific A note to the queue
+      ref.current.addSpecificNote(voiceNote);
+      console.log(`Added ${voiceNote.note} (${voiceNote.frequency} Hz) to ${voiceType}`);
     }
   });
   

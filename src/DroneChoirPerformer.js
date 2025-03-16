@@ -3,42 +3,15 @@ import './DroneChoirPerformer.css';
 import VoiceModule from './VoiceModule';
 import { startUnison, startAll, stopAll } from './performance';
 import { VOICE_RANGES } from './voiceTypes';
-import useFrequencyStreaming from './useFrequencyStreaming';
-import TimeSyncUtils from './TimeSyncUtils';
+import socketManager from './DroneSocketManager';
 
 const DroneChoirPerformer = () => {
-  // Use the streaming hook - add isMaster to the destructured values
-  const {
-    isConnected,
-    error,
-    startFrequencyStream,
-    stopAllStreams,
-    voiceStates,
-    updateNotes,
-    isMaster,
-    checkMasterStatus
-  } = useFrequencyStreaming();
-
   // State for controlling all modules
   const [isAllPlaying, setIsAllPlaying] = useState(false);
   const [soloVoice, setSoloVoice] = useState(null);
-  const [isSolo, setIsSolo] = useState(false);
-  const [syncStatus, setSyncStatus] = useState({ synced: false, offset: 0 });
-  const [audioContextState, setAudioContextState] = useState('unknown');
-  const [isMasterMode, setIsMasterMode] = useState(false);
-
-  const [instanceId] = useState(() => {
-    // Try to get existing ID from localStorage
-    const savedId = localStorage.getItem('droneChoirInstanceId');
-    if (savedId) {
-      return savedId;
-    }
-    
-    // Generate a new ID and save it
-    const newId = Math.random().toString(36).substring(2, 9);
-    localStorage.setItem('droneChoirInstanceId', newId);
-    return newId;
-  });
+  const [singleVoiceMode, setSingleVoiceMode] = useState(null);
+  const [isConnected, setIsConnected] = useState(false);
+  const [viewMode, setViewMode] = useState(null); // 'controller' or 'viewer'
   
   // Create refs to access the voice module methods
   const voiceModuleRefs = {
@@ -48,112 +21,205 @@ const DroneChoirPerformer = () => {
     bass: useRef()
   };
   
-  // Create a shared audio context
-  const [sharedAudioContext, setSharedAudioContext] = useState(null);
+  // Mapping for URL parameters to voice types
+  const voiceRangeMapping = {
+    'high': 'soprano',
+    'mid-high': 'alto',
+    'low-mid': 'tenor',
+    'low': 'bass'
+  };
   
-  // Initialize shared audio context on first interaction
-  const initSharedAudioContext = useCallback(() => {
-    if (!sharedAudioContext) {
-      const newContext = new (window.AudioContext || window.webkitAudioContext)();
-      setSharedAudioContext(newContext);
-      return newContext;
-    }
-    return sharedAudioContext;
-  }, [sharedAudioContext]);
-
+  // Effect for checking URL query parameters and detecting single voice mode
   useEffect(() => {
-    if (sharedAudioContext) {
-      setAudioContextState(sharedAudioContext.state);
-      
-      // Add an event listener to detect state changes
-      const handleStateChange = () => {
-        setAudioContextState(sharedAudioContext.state);
-      };
-      
-      sharedAudioContext.addEventListener('statechange', handleStateChange);
-      
-      return () => {
-        sharedAudioContext.removeEventListener('statechange', handleStateChange);
-      };
-    }
-  }, [sharedAudioContext]);
-
-  // to monitor sync status
-  useEffect(() => {
-    // Check sync status periodically
-    const syncCheckInterval = setInterval(() => {
-      const status = TimeSyncUtils.getSyncStatus();
-      setSyncStatus(status);
-    }, 5000);
+    // Check URL for voice range parameter
+    const queryParams = new URLSearchParams(window.location.search);
+    const rangeParams = Object.keys(voiceRangeMapping);
     
-    return () => clearInterval(syncCheckInterval);
+    console.log('URL search params:', window.location.search);
+    console.log('Parsed query params:', Object.fromEntries(queryParams));
+    
+    // Check for any range parameter in the URL
+    for (const rangeParam of rangeParams) {
+      if (queryParams.has(rangeParam)) {
+        const voiceType = voiceRangeMapping[rangeParam];
+        console.log(`Single voice mode detected: ${rangeParam} -> ${voiceType}`);
+        setSingleVoiceMode(voiceType);
+        break;
+      }
+    }
+    
+    console.log('Range params checked:', rangeParams);
   }, []);
-
-  // Update UI based on the master status from the useFrequencyStreaming hook
+  
+  // Connect to socket server and set up listeners
   useEffect(() => {
-    if (isMaster !== undefined) {
-      setIsMasterMode(isMaster);
-      console.log(`isMaster state changed: ${isMaster}`);
-      console.log(`This client (${instanceId}) is ${isMaster ? 'MASTER' : 'SLAVE'} mode`);
+    // Connect to the socket server
+    socketManager.connect();
+    
+    // Set up socket event listeners
+    socketManager.on('connect', () => {
+      setIsConnected(true);
+    });
+    
+    socketManager.on('disconnect', () => {
+      setIsConnected(false);
+    });
+    
+    socketManager.on('registered', (data) => {
+      setViewMode(data.type);
+    });
+    
+    socketManager.on('initial-state', (state) => {
+      // Apply initial state from server
+      applyReceivedState(state);
+    });
+    
+    socketManager.on('state-updated', (state) => {
+      // Apply state updates from server
+      applyReceivedState(state);
+    });
+    
+    socketManager.on('voice-state', (data) => {
+      // Apply state for a specific voice
+      applyVoiceState(data.voiceType, data.state);
+    });
+    
+    // Clean up on unmount
+    return () => {
+      socketManager.disconnect();
+    };
+  }, []);
+  
+  // Register as controller or viewer when connected
+  useEffect(() => {
+    if (!isConnected) return;
+    
+    if (singleVoiceMode) {
+      // Register as a viewer for a specific voice
+      socketManager.register('viewer', singleVoiceMode);
+    } else {
+      // Register as the main controller
+      socketManager.register('controller');
     }
-  }, [isMaster, instanceId]);
-
-  const ensureAudioContextRunning = useCallback(() => {
-    if (sharedAudioContext && sharedAudioContext.state === 'suspended') {
-      console.log('Attempting to resume suspended audio context');
-      sharedAudioContext.resume().then(() => {
-        console.log('Audio context resumed successfully');
-      }).catch(err => {
-        console.error('Failed to resume audio context:', err);
+  }, [isConnected, singleVoiceMode]);
+  
+  // Broadcast state updates to server (from controller)
+  useEffect(() => {
+    if (viewMode !== 'controller') return;
+    
+    // Set up periodic state broadcasting
+    const broadcastInterval = setInterval(() => {
+      broadcastState();
+    }, 1000);
+    
+    return () => {
+      clearInterval(broadcastInterval);
+    };
+  }, [viewMode]);
+  
+  const applyReceivedState = (state) => {
+    if (!state) return;
+    
+    if (viewMode === 'viewer') {
+      // Update global state
+      setIsAllPlaying(state.isPlaying);
+      setSoloVoice(state.soloVoice);
+      
+      // Update individual voice modules
+      Object.entries(state.voices || {}).forEach(([voiceType, voiceState]) => {
+        // Skip if we're in single voice mode and this isn't our voice
+        if (singleVoiceMode && voiceType !== singleVoiceMode) return;
+        
+        // Even if global state is "stopped", process individual voice states
+        // This ensures we respect the actual state of each voice
+        applyVoiceState(voiceType, voiceState);
       });
     }
-  }, [sharedAudioContext]);
-
-  // Sync with server voice states
-  useEffect(() => {
-    if (Object.keys(voiceStates).length > 0) {
-      ensureAudioContextRunning();
-      let anyPlaying = false;
-      
-      // Update each voice module with server state
-      Object.entries(voiceStates).forEach(([voiceType, state]) => {
-        const ref = voiceModuleRefs[voiceType];
-        if (ref && ref.current) {
-          // If the server says the voice is playing but our local state is not
-          if (state.isPlaying) {
-            anyPlaying = true;
-            
-            // If we have notes in the queue, update the module
-            if (state.noteQueue && state.noteQueue.length > 0) {
-              // First clear existing queue
-              ref.current.clearQueue();
-              
-              // Then add all notes from server
-              state.noteQueue.forEach(note => {
-                ref.current.addSpecificNote(note);
-              });
-              
-              // Start the voice if it's not already playing
-              if (!ref.current.isPlaying) {
-                console.log(`Starting ${voiceType} based on server state`);
-                ref.current.startPerformance(sharedAudioContext || initSharedAudioContext());
-              }
-            }
-          } else if (!state.isPlaying && ref.current.isPlaying) {
-            // If server says not playing but we are, stop
-            ref.current.stopPerformance();
-          }
+  };
+  
+  // Apply state for a specific voice
+  const applyVoiceState = (voiceType, voiceState) => {
+    const voiceRef = voiceModuleRefs[voiceType]?.current;
+    if (!voiceRef) return;
+    
+    try {
+      // Apply received state to the voice module
+      if (voiceState.isPlaying && !voiceRef.isPlaying) {
+        // Only start if it's not already playing
+        if (voiceState.currentNote) {
+          voiceRef.clearQueue();
+          voiceRef.addSpecificNote(voiceState.currentNote);
+          voiceRef.startPerformance();
         }
-      });
+      } else if (!voiceState.isPlaying && voiceRef.isPlaying) {
+        // Stop if it's playing but shouldn't be
+        voiceRef.stopPerformance();
+      }
       
-      // Update master playing state
-      setIsAllPlaying(anyPlaying);
+      // For viewers, disable auto-generation
+      if (viewMode === 'viewer' && voiceRef.autoGenerate) {
+        voiceRef.stopAutoGeneration();
+      }
+    } catch (error) {
+      console.error(`Error applying voice state for ${voiceType}:`, error);
     }
-  }, [voiceStates, initSharedAudioContext, sharedAudioContext, ensureAudioContextRunning]);
+  };
+  
+  const broadcastState = () => {
+    if (viewMode !== 'controller') return;
+    
+    // Gather state from all voice modules
+    const voices = {};
+    let anyVoicePlaying = false;  // Add this line
+    
+    Object.entries(voiceModuleRefs).forEach(([voiceType, ref]) => {
+      if (!ref.current) return;
+      
+      const isVoicePlaying = ref.current.isPlaying || false;
+      const currentNote = ref.current.getCurrentNote?.() || null;
+      
+      // Track if any voice is playing
+      if (isVoicePlaying) {
+        anyVoicePlaying = true;
+      }
+      
+      voices[voiceType] = {
+        isPlaying: isVoicePlaying,
+        currentNote: currentNote,
+        nextNote: ref.current.getNextNote?.() || null
+      };
+      
+      console.log(`${voiceType} state for broadcast:`, isVoicePlaying ? 'playing' : 'stopped', currentNote?.note);
+    });
+    
+    // Update global playing state if it doesn't match
+    if (anyVoicePlaying !== isAllPlaying) {
+      setIsAllPlaying(anyVoicePlaying);
+    }
+    
+    // Create complete state object
+    const state = {
+      isPlaying: anyVoicePlaying, // Use the detected state instead of isAllPlaying
+      soloVoice,
+      voices,
+      timestamp: Date.now()
+    };
+    
+    console.log("Broadcasting state:", state.isPlaying ? 'playing' : 'stopped', 
+                Object.keys(voices).map(v => `${v}: ${voices[v].isPlaying ? 'playing' : 'stopped'}`).join(', '));
+    
+    // Send to server
+    socketManager.updateState(state);
+  };
 
-  const handleVoiceSelection = (voiceType) => {
-    if (soloVoice === voiceType) {
-      // Deselect if the same voice is clicked again
+  const handleSoloToggle = useCallback((voiceType, isSolo) => {
+    if (viewMode !== 'controller') return;
+    
+    console.log('Solo toggle called:', { voiceType, isSolo });
+    
+    if (isSolo) {
+      setSoloVoice(voiceType);
+    } else {
       setSoloVoice(null);
 
       // ✅ Deselect all voice modules
@@ -177,179 +243,121 @@ const DroneChoirPerformer = () => {
         }
       });
     }
+    
+    // Broadcast state after change
+    setTimeout(broadcastState, 100);
+  }, [viewMode]);
+  
+  // Initialize shared audio context for all voice modules
+  const initSharedAudioContext = useCallback(() => {
+    return new (window.AudioContext || window.webkitAudioContext)();
+  }, []);
+  
+  // Handle start unison button click
+  const handleStartUnison = useCallback(() => {
+    if (viewMode !== 'controller') return;
+    
+    startUnison(voiceModuleRefs, initSharedAudioContext, setIsAllPlaying);
+    
+    // Broadcast state after change
+    setTimeout(broadcastState, 100);
+  }, [viewMode]);
+  
+  // Handle start all button click
+  const handleStartAll = useCallback(() => {
+    if (viewMode !== 'controller') return;
+    
+    startAll(voiceModuleRefs, initSharedAudioContext, setIsAllPlaying);
+    
+    // Broadcast state after change
+    setTimeout(broadcastState, 100);
+  }, [viewMode]);
+  
+  // Handle stop all button click
+  const handleStopAll = useCallback(() => {
+    if (viewMode !== 'controller') return;
+    
+    stopAll(voiceModuleRefs, setIsAllPlaying);
+    
+    // Broadcast state after change
+    setTimeout(broadcastState, 100);
+  }, [viewMode]);
+  
+  // Helper function to get range label
+  const getRangeLabel = (voiceType) => {
+    return Object.entries(voiceRangeMapping).find(
+      ([_, value]) => value === voiceType
+    )?.[0]?.toUpperCase() || 'VOICE';
   };
-
-  // Modify auto-generation and note generation logic based on master/slave status
-  const addNoteToQueue = useCallback((voiceType, note) => {
-    if (!isMasterMode) {
-      console.log('Slave mode - cannot add notes to queue');
-      return; // Only the master can add notes
-    }
-    
-    // Continue with adding notes to queue
-    if (note) {
-      updateNotes(voiceType, [note]);
-    }
-  }, [isMasterMode, updateNotes]);
   
-  // Function to start all voices on a scheduled note
-  const startUnisonScheduled = (voiceModuleRefs, initSharedAudioContext, setIsAllPlaying, unisonNote) => {
-    console.log(`Starting all voices on fixed pitch at scheduled time: ${new Date(unisonNote.scheduledStartTime).toISOString()}`);
+  // If in single voice mode, render only that voice module
+  if (singleVoiceMode && VOICE_RANGES[singleVoiceMode]) {
+    const voiceType = singleVoiceMode;
+    const range = VOICE_RANGES[voiceType];
+    const rangeLabel = getRangeLabel(voiceType);
     
-    // Initialize the shared audio context
-    const ctx = initSharedAudioContext();
-    
-    // Clear existing queues in all voice modules and add the common note
-    Object.entries(voiceModuleRefs).forEach(([voiceType, ref]) => {
-      if (ref.current) {
-        // First clear the queue
-        ref.current.clearQueue();
-        // Then add the common note
-        ref.current.addSpecificNote(unisonNote);
-      }
-    });
-    
-    // Start all modules with the shared context
-    Object.values(voiceModuleRefs).forEach(ref => {
-      if (ref.current && ref.current.startPerformance) {
-        ref.current.startPerformance(ctx);
-      }
-    });
-    
-    setIsAllPlaying(true);
-  };
+    return (
+      <div className="drone-choir-single">
+        <h1>{rangeLabel} VOICE</h1>
+        <div className="single-voice-container">
+          <VoiceModule 
+            key={voiceType}
+            voiceType={voiceType} 
+            voiceRange={range}
+            rangeLabel={rangeLabel}
+            ref={voiceModuleRefs[voiceType]}
+            onPlayStateChange={(isPlaying) => {
+              // Only controller can change play state
+              if (viewMode !== 'controller') return;
+              
+              // Broadcast state after change
+              setTimeout(broadcastState, 100);
+            }}
+            onSoloToggle={handleSoloToggle}
+            isSoloMode={false}
+            isCurrentSolo={false}
+            isViewerMode={viewMode === 'viewer'}
+            isSingleMode={true}
+          />
+        </div>
+      </div>
+    );
+  }
   
-  // Handle the master control button click
-  const handleMasterControlClick = useCallback(() => {
-    if (isAllPlaying) {
-      // Stop all streaming frequencies
-      stopAllStreams();
-      // Stop all voice modules
-      stopAll(voiceModuleRefs, setIsAllPlaying);
-    } else {
-      // Start streaming for each voice type
-      Object.values(VOICE_RANGES).forEach(voiceConfig => {
-        startFrequencyStream(voiceConfig.id);
-      });
-      
-      // Start all voice modules
-      startAll(voiceModuleRefs, initSharedAudioContext, setIsAllPlaying);
-    }
-  }, [isAllPlaying, startFrequencyStream, stopAllStreams, initSharedAudioContext]);
-  
-  // Handle unison start button click
-  const handleUnisonStart = useCallback(() => {
-    // Common pitch for unison
-    const commonPitch = 220; // A3
-    const noteName = 'A3';
+  // If not connected yet, show connecting message
+  if (!isConnected) {
+    return (
+      <div className="connecting-message">
+        <h2>Connecting to server...</h2>
+      </div>
+    );
+  }
 
-    // Calculate a start time in the future to allow for network latency
-    // We'll schedule it 1.5 seconds in the future to ensure all clients have time to receive the message
-    const scheduledStartTime = TimeSyncUtils.getEstimatedServerTime() + 1500;
-    
-    // Create the unison note with scheduled time
-    const unisonNote = {
-      frequency: commonPitch,
-      duration: 10,
-      note: noteName,
-      scheduledStartTime: scheduledStartTime
-    };
-  
-    // Call the unison API endpoint
-    fetch('http://localhost:8080/api/unison', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        pitch: commonPitch,
-        note: noteName,
-        duration: 10,
-        scheduledStartTime: scheduledStartTime,
-        instanceId: instanceId // Add instanceId to check master permission
-      })
-    }).catch(error => console.error('Error setting unison:', error));
-    
-    // Continue with existing logic
-    Object.values(VOICE_RANGES).forEach(voiceConfig => {
-      startFrequencyStream(voiceConfig.id);
-    });
-    
-    // Start the scheduled unison performance
-    startUnisonScheduled(voiceModuleRefs, initSharedAudioContext, setIsAllPlaying, unisonNote);
-  }, [startFrequencyStream, initSharedAudioContext, instanceId]);
-
-  // Handle note queue updates
-  const handleNoteQueueUpdate = useCallback((voiceType, notes) => {
-    // Only allow master to update notes
-    if (!isMasterMode) {
-      console.log(`Cannot update notes in slave mode for ${voiceType}`);
-      return;
-    }
-    
-    // Update server with new notes
-    updateNotes(voiceType, notes);
-  }, [updateNotes, isMasterMode]);
-
+  // Regular full view with all voice modules
   return (
     <div className="drone-choir-multi">
-      <div style={{padding: '10px', backgroundColor: '#f0f0f0', marginBottom: '10px', textAlign: 'center'}}>
-        Current Audio Context State: {audioContextState || 'No AudioContext'}
-      </div>
-
-      <div className="connection-status">
-        <span 
-          className={`status-indicator ${isConnected ? 'connected' : 'disconnected'}`}
-        >
-          {isConnected ? 'Streaming: Connected' : 'Streaming: Disconnected'}
-        </span>
-        <span 
-          className={`sync-indicator ${syncStatus.synced ? 'synced' : 'out-of-sync'}`}
-          title={`Time offset: ${syncStatus.offset.toFixed(0)}ms`}
-        >
-          {syncStatus.synced ? 'Time Synced' : 'Not Synced'}
-        </span>
-        <span 
-          className={`mode-indicator ${isMasterMode ? 'master' : 'slave'}`}
-          onClick={() => checkMasterStatus && checkMasterStatus()} // Add click handler to refresh status
-        >
-          {isMasterMode ? 'Master Mode' : 'Slave Mode'}
-        </span>
-      </div>
-
-      {/* Audio context warning */}
-      {audioContextState === 'suspended' && (
-        <div className="audio-warning">
-          <p>Click or tap anywhere on the page to enable audio playback</p>
-          <button 
-            onClick={() => sharedAudioContext?.resume()}
-            className="audio-enable-button"
-          >
-            Enable Audio
-          </button>
-        </div>
-      )}
-        
-      {/* Connection status and error handling */}
-      {error && (
-        <div className="connection-error">
-          <p>Streaming Error: {error.message || 'Connection failed'}</p>
-        </div>
-      )}
-
       {/* Master controls */}
       <div className="master-controls">
-        <button
-          onClick={handleUnisonStart}
-          className="master-control-button initial"
-          disabled={!isConnected || (!isMasterMode && handleUnisonStart.name !== 'unison')}
+        <button 
+          className="master-control-button initial" 
+          onClick={handleStartUnison}
+          disabled={isAllPlaying || viewMode !== 'controller'}
         >
-          Start All on Same Pitch (10s)
+          Start on A Note (10s)
         </button>
-        <button
-          onClick={handleMasterControlClick}
-          className={`master-control-button ${isAllPlaying ? 'stop' : 'start'}`}
-          disabled={!isConnected}
+        <button 
+          className="master-control-button start" 
+          onClick={handleStartAll}
+          disabled={isAllPlaying || viewMode !== 'controller'}
         >
-          {isAllPlaying ? 'Stop All Voices' : 'Start All Voices'}
+          Start All Voices
+        </button>
+        <button 
+          className="master-control-button stop" 
+          onClick={handleStopAll}
+          disabled={!isAllPlaying || viewMode !== 'controller'}
+        >
+          Stop All Voices
         </button>
       </div>
       
@@ -360,10 +368,12 @@ const DroneChoirPerformer = () => {
             key={voiceType}
             voiceType={voiceType} 
             voiceRange={range}
-            isSelected={soloVoice === voiceType}
+            rangeLabel={getRangeLabel(voiceType)}
             ref={voiceModuleRefs[voiceType]}
-            sharedAudioContext={sharedAudioContext}
             onPlayStateChange={(isPlaying) => {
+              // Only controller can change play state
+              if (viewMode !== 'controller') return;
+              
               // Check if any module is still playing when one stops
               if (!isPlaying) {
                 const anyStillPlaying = Object.values(voiceModuleRefs).some(
@@ -374,13 +384,14 @@ const DroneChoirPerformer = () => {
                   setIsAllPlaying(false);
                 }
               }
+              
+              // Broadcast state after change
+              setTimeout(broadcastState, 100);
             }}
             onSoloToggle={handleVoiceSelection}
             isSoloMode={soloVoice !== null}
             isCurrentSolo={soloVoice === voiceType}
-            soloVoice={soloVoice}
-            onNoteQueueUpdate={(notes) => handleNoteQueueUpdate(voiceType, notes)}
-            isMasterMode={isMasterMode} // Pass master/slave status
+            isViewerMode={viewMode === 'viewer'}
           />
         ))}
       </div>

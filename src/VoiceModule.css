@@ -74,3 +74,232 @@
 .drone-choir-container.selected {
   background-color: #4a154b;
 }
+
+.drone-choir-container.single-mode {
+  width: 100%;
+  max-width: 100%;
+}
+
+.single-mode-indicator {
+  background-color: #4a5568;
+  color: white;
+  padding: 12px;
+  border-radius: 8px;
+  margin-bottom: 15px;
+  text-align: center;
+}
+
+.single-note-heading {
+  font-size: 16px;
+  font-weight: bold;
+}
+
+.note-name.large-note {
+  font-size: 36px;
+}
+
+.visualization-container.enhanced-visualization {
+  height: 180px;
+}
+
+@media (max-width: 768px) {
+  .visualization-container.enhanced-visualization {
+    height: 150px;
+  }
+}
+
+/* Enhanced mobile styling for single voice mode */
+@media (max-width: 767px) {
+  /* Hide header and footer */
+  body:has(.drone-choir-single) .App-header,
+  body:has(.drone-choir-single) footer {
+    display: none;
+  }
+  
+  /* Full screen container */
+  .drone-choir-single {
+    padding: 0;
+    margin: 0;
+    width: 100%;
+    height: 100vh;
+    box-sizing: border-box;
+    overflow: hidden;
+    position: fixed;
+    top: 0;
+    left: 0;
+    background-color: #1a202c;
+    display: flex;
+    flex-direction: column;
+  }
+  
+  /* Main title - make it pop */
+  .drone-choir-single h1 {
+    font-size: 2rem;
+    font-weight: 700;
+    text-align: center;
+    margin: 0;
+    padding: 15px 0;
+    background-color: #232836;
+    color: white;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+  }
+  
+  /* Hide the range details to save space */
+  .voice-type-detail {
+    display: none;
+  }
+  
+  /* Module container */
+  .single-voice-container {
+    flex: 1;
+    display: flex;
+    padding: 0 10px;
+  }
+  
+  .single-voice-container .drone-choir-container {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    padding: 10px 0;
+    gap: 8px;
+  }
+  
+  /* Hide Solo button when in single mode */
+  .single-voice-container .module-controls {
+    display: none;
+  }
+  
+  /* Remove unnecessary voice title repetition */
+  .single-voice-container .voice-title,
+  .single-voice-container .voice-selector {
+    display: none;
+  }
+  
+  /* Clean up control panel */
+  .single-voice-container .control-panel {
+    background-color: #2d3748;
+    border-radius: 8px;
+    padding: 12px;
+    margin: 0;
+  }
+  
+  /* Start Performance button */
+  .single-voice-container .control-button {
+    width: 100%;
+    height: 50px;
+    font-size: 1.1rem;
+    font-weight: bold;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+  }
+  
+  /* Auto-generate toggle */
+  .single-voice-container .auto-generate {
+    margin: 12px 0;
+  }
+  
+  .single-voice-container .auto-generate label {
+    display: flex;
+    align-items: center;
+    font-size: 1rem;
+  }
+  
+  .single-voice-container input[type="checkbox"] {
+    width: 20px;
+    height: 20px;
+    margin-right: 8px;
+  }
+  
+  /* Add Random Note button */
+  .single-voice-container .queue-button {
+    width: 100%;
+    height: 44px;
+    font-size: 1rem;
+    border-radius: 8px;
+  }
+  
+  /* Current Note display */
+  .single-voice-container .note-display {
+    background-color: #2d3748;
+    border-radius: 8px;
+    padding: 12px;
+    text-align: center;
+  }
+  
+  .single-voice-container .section-title {
+    font-size: 1rem;
+    margin-bottom: 6px;
+    text-align: center;
+  }
+  
+  .single-voice-container .note-name {
+    font-size: 2.5rem;
+    font-weight: bold;
+    margin: 5px 0;
+  }
+  
+  .single-voice-container .note-frequency {
+    font-size: 1rem;
+    opacity: 0.7;
+  }
+  
+  .single-voice-container .no-note {
+    font-size: 1.2rem;
+    font-style: italic;
+    opacity: 0.7;
+    padding: 10px 0;
+  }
+  
+  /* Queue display */
+  .single-voice-container .queue-display {
+    background-color: #2d3748;
+    border-radius: 8px;
+    padding: 12px;
+  }
+  
+  .single-voice-container .queue-items {
+    background-color: #1a202c;
+    border-radius: 6px;
+    padding: 8px;
+    max-height: 60px;
+  }
+  
+  .single-voice-container .empty-queue {
+    text-align: center;
+    padding: 8px;
+    font-style: italic;
+    opacity: 0.7;
+  }
+  
+  /* Visualization area */
+  .single-voice-container .visualization-container {
+    flex: 1;
+    min-height: 120px;
+    background-color: #1a202c;
+    border-radius: 8px;
+    margin-top: auto; /* Push to bottom */
+    display: flex;
+  }
+  
+  .single-voice-container .waveform-container {
+    flex: 1;
+  }
+  
+  /* Currently Playing banner */
+  .single-voice-container .currently-playing {
+    background-color: #234876;
+    color: white;
+    text-align: center;
+    padding: 8px;
+    border-radius: 8px;
+    margin-bottom: 8px;
+    font-weight: bold;
+    font-size: 1.1rem;
+    display: none; /* Show only when playing */
+  }
+  
+  .single-voice-container.playing .currently-playing {
+    display: block;
+  }
+}

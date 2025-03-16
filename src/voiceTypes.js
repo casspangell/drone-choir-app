@@ -8,7 +8,7 @@ export const VOICE_RANGES = {
     bass: { 
         min: 98.00, 
         max: 261.63, 
-        label: 'Bass (G2-C4)', 
+        label: '(G2-C4)', 
         id: 4,
         hertz: 110,
         note: 'A2'
@@ -16,7 +16,7 @@ export const VOICE_RANGES = {
     tenor: { 
         min: 130.81, 
         max: 349.23, 
-        label: 'Tenor (C3-F4)', 
+        label: '(C3-F4)', 
         id: 3,
         hertz: 880,
         note: 'A5'
@@ -24,7 +24,7 @@ export const VOICE_RANGES = {
     alto: { 
         min: 164.81, 
         max: 392.00, 
-        label: 'Alto (E3-G4)', 
+        label: '(E3-G4)', 
         id: 2,
         hertz: 220,
         note: 'A3'
@@ -32,7 +32,7 @@ export const VOICE_RANGES = {
     soprano: { 
         min: 196.00, 
         max: 523.25, 
-        label: 'Soprano (G3-C5)', 
+        label: '(G3-C5)', 
         id: 1,
         hertz: 440,
         note: 'A4'
