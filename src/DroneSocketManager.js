@@ -51,6 +51,16 @@ class DroneSocketManager {
     this.socket.on('voice-state', (data) => {
       this.notifyListeners('voice-state', data);
     });
+
+    this.socket.on('state-updated', (data) => {
+      console.log('Received state update from server:', data);
+      this.notifyListeners('state-updated', data);
+    });
+
+    this.socket.on('voice-state', (data) => {
+      console.log('Received voice state from server:', data);
+      this.notifyListeners('voice-state', data);
+    });
   }
   
   // Register as a controller (main dashboard) or viewer (single voice)
@@ -77,12 +87,15 @@ class DroneSocketManager {
       clearInterval(this.pollInterval);
     }
     
+    console.log(`Starting polling for ${voiceType} state`);
+    
     // Request state for this voice every second
     this.pollInterval = setInterval(() => {
       if (this.isConnected) {
+        console.log(`Requesting state for ${voiceType}`);
         this.socket.emit('request-voice-state', voiceType);
       }
-    }, 1000);
+    }, 500); // Poll more frequently
   }
   
   // Stop polling

@@ -98,13 +98,19 @@ io.on('connection', (socket) => {
 
   // Handle state updates from controller (main dashboard)
 socket.on('state-update', (newState) => {
-  console.log('State update from controller:', 
+  console.log('Received state update from controller:', 
               newState.isPlaying ? 'playing' : 'stopped',
-              Object.keys(newState.voices).map(v => 
-                `${v}: ${newState.voices[v].isPlaying ? 'playing' : 'stopped'}`).join(', '));
+              Object.keys(newState.voices || {}).map(v => 
+               `${v}: ${newState.voices[v].isPlaying ? 'playing' : 'stopped'}`).join(', '));
   
   // Store the updated state
   currentState = newState;
+  
+  // Log the stored state
+  console.log('Updated current state:', 
+              currentState.isPlaying ? 'playing' : 'stopped',
+              Object.keys(currentState.voices || {}).map(v => 
+               `${v}: ${currentState.voices[v].isPlaying ? 'playing' : 'stopped'}`).join(', '));
   
   // Broadcast to all viewers
   socket.to('viewers').emit('state-updated', newState);
@@ -112,37 +118,40 @@ socket.on('state-update', (newState) => {
 
 // Handle specific voice requests
 socket.on('request-voice-state', (voiceType) => {
+  console.log(`Voice state requested for ${voiceType}`);
+  
   // Send the state for the requested voice
-  if (currentState.voices[voiceType]) {
-    console.log(`Sending ${voiceType} state:`, 
-                currentState.voices[voiceType].isPlaying ? 'playing' : 'stopped');
+  if (currentState.voices && currentState.voices[voiceType]) {
+    console.log(`Sending ${voiceType} state: ${currentState.voices[voiceType].isPlaying ? 'playing' : 'stopped'}`);
     
     socket.emit('voice-state', {
       voiceType,
       state: currentState.voices[voiceType]
     });
+  } else {
+    console.log(`No state available for ${voiceType}`);
   }
 });
   
   // Handle state updates from controller (main dashboard)
-  socket.on('state-update', (newState) => {
-    // Store the updated state
-    currentState = newState;
+  // socket.on('state-update', (newState) => {
+  //   // Store the updated state
+  //   currentState = newState;
     
-    // Broadcast to all viewers
-    socket.to('viewers').emit('state-updated', newState);
-  });
+  //   // Broadcast to all viewers
+  //   socket.to('viewers').emit('state-updated', newState);
+  // });
   
   // Handle specific voice requests
-  socket.on('request-voice-state', (voiceType) => {
-    // Send the state for the requested voice
-    if (currentState.voices[voiceType]) {
-      socket.emit('voice-state', {
-        voiceType,
-        state: currentState.voices[voiceType]
-      });
-    }
-  });
+  // socket.on('request-voice-state', (voiceType) => {
+  //   // Send the state for the requested voice
+  //   if (currentState.voices[voiceType]) {
+  //     socket.emit('voice-state', {
+  //       voiceType,
+  //       state: currentState.voices[voiceType]
+  //     });
+  //   }
+  // });
   
   // Handle disconnection
   socket.on('disconnect', () => {

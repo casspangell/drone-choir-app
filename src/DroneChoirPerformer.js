@@ -139,26 +139,37 @@ const DroneChoirPerformer = () => {
   
   // Apply state for a specific voice
   const applyVoiceState = (voiceType, voiceState) => {
+    // Add debugging logs
+    console.log(`Applying voice state for ${voiceType}:`, 
+                voiceState.isPlaying ? 'playing' : 'stopped',
+                voiceState.currentNote?.note);
+    
     const voiceRef = voiceModuleRefs[voiceType]?.current;
-    if (!voiceRef) return;
+    if (!voiceRef) {
+      console.error(`No ref for ${voiceType}`);
+      return;
+    }
     
     try {
       // Apply received state to the voice module
       if (voiceState.isPlaying && !voiceRef.isPlaying) {
+        console.log(`Starting ${voiceType} with note:`, voiceState.currentNote?.note);
         // Only start if it's not already playing
         if (voiceState.currentNote) {
           voiceRef.clearQueue();
           voiceRef.addSpecificNote(voiceState.currentNote);
           voiceRef.startPerformance();
+        } else {
+          console.warn(`${voiceType} should play but no current note provided`);
         }
       } else if (!voiceState.isPlaying && voiceRef.isPlaying) {
+        console.log(`Stopping ${voiceType}`);
         // Stop if it's playing but shouldn't be
         voiceRef.stopPerformance();
-      }
-      
-      // For viewers, disable auto-generation
-      if (viewMode === 'viewer' && voiceRef.autoGenerate) {
-        voiceRef.stopAutoGeneration();
+      } else {
+        console.log(`No change needed for ${voiceType}`, 
+                    voiceState.isPlaying ? 'playing' : 'stopped',
+                    voiceRef.isPlaying ? 'playing' : 'stopped');
       }
     } catch (error) {
       console.error(`Error applying voice state for ${voiceType}:`, error);
