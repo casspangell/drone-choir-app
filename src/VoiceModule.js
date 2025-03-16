@@ -264,6 +264,19 @@ const VoiceModule = forwardRef(({
       
       setAutoGenerate(false);
     };
+
+    const resumeAudioContext = () => {
+      if (audioContextRef.current && audioContextRef.current.state === 'suspended') {
+        console.log(`Resuming audio context for ${voiceType}`);
+        audioContextRef.current.resume().then(() => {
+          console.log(`Audio context resumed successfully for ${voiceType}`);
+        }).catch(err => {
+          console.error(`Failed to resume audio context for ${voiceType}:`, err);
+        });
+      } else {
+        console.log(`Audio context is already running or not available for ${voiceType}`);
+      }
+    };
   
   // Play the next note in the queue
   const playNextInQueue = () => {
@@ -737,6 +750,15 @@ const adjustVolumeForSolo = (soloVolume) => {
   
 return (
   <div className={`drone-choir-container ${isSelected ? 'selected' : ''} ${isSingleMode ? 'single-mode' : ''}`} >
+      
+      {isSingleMode && (
+      <button 
+        className="enable-audio-button"
+        onClick={resumeAudioContext}
+      >
+        Enable Audio
+      </button>
+    )}
 
     <h2 className="voice-title">{voiceRange.label}</h2>
     
