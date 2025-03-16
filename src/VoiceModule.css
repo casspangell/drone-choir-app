@@ -358,6 +358,31 @@
   }
 }
 
+@media (max-width: 767px) {
+  .note-display-row {
+    display: flex;
+    gap: 10px;
+  }
+
+  .note-display-row > .note-display {
+    flex: 1;
+    margin-bottom: 0;
+  }
+
+  .note-display-row > .note-display.current-note {
+    order: 1;
+  }
+
+  .note-display-row > .note-display.next-note {
+    order: 2;
+  }
+
+  .note-display-row .section-title {
+    text-align: left;
+    padding-left: 0;
+  }
+}
+
 /* Hide the button after audio is enabled */
 .audio-enabled .enable-audio-container {
   display: none;

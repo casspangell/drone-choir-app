@@ -6,6 +6,12 @@
   background-color: #1a202c;
 }
 
+@media screen and (max-width: 768px) {
+  h1 {
+    display: none;
+  }
+}
+
 .App-header {
   background-color: #2d3748;
   padding: 20px;

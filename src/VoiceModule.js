@@ -878,40 +878,43 @@ return (
     )}
     
     {/* Current note display */}
-    <div className="note-display">
-      <h2 className="section-title">Current Note</h2>
-      
-      {currentNote ? (
-        <div className="note-info">
-          <div className="note-details">
-            <div className={`note-name ${isSingleMode ? 'large-note' : ''}`}>{currentNote.note}</div>
-            <div className="note-frequency">{currentNote.frequency.toFixed(2)} Hz</div>
-          </div>
-          
-          <div className="countdown">
-            <div className="countdown-time">
-              {countdownTime}s
+   <div className="note-display-row">
+      {/* Current note display */}
+      <div className="note-display current-note">
+        <h2 className="section-title">Current Note</h2>
+        
+        {currentNote ? (
+          <div className="note-info">
+            <div className="note-details">
+              <div className={`note-name ${isSingleMode ? 'large-note' : ''}`}>{currentNote.note}</div>
+              <div className="note-frequency">{currentNote.frequency.toFixed(2)} Hz</div>
             </div>
-            <div className="countdown-label">until next note</div>
+            
+            <div className="countdown">
+              <div className="countdown-time">
+                {countdownTime}s
+              </div>
+              <div className="countdown-label">until next note</div>
+            </div>
+          </div>
+        ) : (
+          <div className="no-note">No note playing</div>
+        )}
+      </div>
+      
+      {/* Next note preview */}
+      {nextNote && (
+        <div className="note-display next-note">
+          <h2 className="section-title">Coming Next</h2>
+          <div className="note-info">
+            <div className="note-details">
+              <div className="note-name next">{nextNote.note}</div>
+              <div className="note-frequency">{nextNote.frequency.toFixed(2)} Hz</div>
+            </div>
           </div>
         </div>
-      ) : (
-        <div className="no-note">No note playing</div>
       )}
     </div>
-    
-    {/* Next note preview */}
-    {nextNote && (
-      <div className="note-display next-note">
-        <h2 className="section-title">Coming Next</h2>
-        <div className="note-info">
-          <div className="note-details">
-            <div className="note-name next">{nextNote.note}</div>
-            <div className="note-frequency">{nextNote.frequency.toFixed(2)} Hz</div>
-          </div>
-        </div>
-      </div>
-    )}
     
     {/* Queue display - conditionally show less detail in single mode */}
     <div className="queue-display">
