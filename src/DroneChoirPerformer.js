@@ -12,6 +12,7 @@ const DroneChoirPerformer = () => {
   const [singleVoiceMode, setSingleVoiceMode] = useState(null);
   const [isConnected, setIsConnected] = useState(false);
   const [viewMode, setViewMode] = useState(null); // 'controller' or 'viewer'
+  const [dashboardMuted, setDashboardMuted] = useState(false);
   
   // Create refs to access the voice module methods
   const voiceModuleRefs = {
@@ -28,6 +29,21 @@ const DroneChoirPerformer = () => {
     'low-mid': 'tenor',
     'low': 'bass'
   };
+
+  const toggleDashboardMute = useCallback(() => {
+    const newMuteState = !dashboardMuted;
+    setDashboardMuted(newMuteState);
+    
+    // Apply to all voice modules
+    Object.values(voiceModuleRefs).forEach(ref => {
+      if (ref.current) {
+        ref.current.setDashboardMute(newMuteState);
+      }
+    });
+    
+    console.log(`Dashboard ${newMuteState ? 'muted' : 'unmuted'}`);
+  }, [dashboardMuted]);
+
   
   // Effect for checking URL query parameters and detecting single voice mode
   useEffect(() => {
@@ -358,6 +374,13 @@ const DroneChoirPerformer = () => {
           disabled={!isAllPlaying || viewMode !== 'controller'}
         >
           Stop All Voices
+        </button>
+        <button 
+          className="master-control-button mute"
+          onClick={toggleDashboardMute}
+          data-muted={dashboardMuted}
+        >
+          {dashboardMuted ? 'Unmute Dashboard' : 'Mute Dashboard'}
         </button>
       </div>
       

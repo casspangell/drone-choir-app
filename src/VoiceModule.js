@@ -25,6 +25,7 @@ const VoiceModule = forwardRef(({
   const voiceRange = VOICE_RANGES[voiceType];
   const [isSolo, setIsSolo] = useState(false);
   const [isSelected, setIsSelected] = useState(false);
+  const [isDashboardMuted, setIsDashboardMuted] = useState(false);
   
   // Refs
   const audioQueueRef = useRef([]);
@@ -144,7 +145,60 @@ const VoiceModule = forwardRef(({
     },
     get isSelected() {
       return isSelected;
-    }
+    },
+    setDashboardMute: (muted) => {
+        setIsDashboardMuted(muted);
+        
+        // If there's an active context, create a zero-gain node that blocks all audio
+        if (audioContextRef.current) {
+          try {
+            // If we already have a mute node, dispose of it
+            if (audioContextRef.current._muteNode) {
+              audioContextRef.current._muteNode.disconnect();
+            }
+            
+            if (muted) {
+              // Create a gain node with 0 gain and insert it at destination
+              const muteNode = audioContextRef.current.createGain();
+              muteNode.gain.value = 0;
+              
+              // Store the destination for later
+              audioContextRef.current._originalDestination = audioContextRef.current.destination;
+              
+              // Replace the destination with our mute node
+              Object.defineProperty(audioContextRef.current, 'destination', {
+                value: muteNode,
+                writable: false,
+                configurable: true
+              });
+              
+              // Connect mute node to the real destination
+              muteNode.connect(audioContextRef.current._originalDestination);
+              
+              // Store reference to mute node
+              audioContextRef.current._muteNode = muteNode;
+              
+              console.log(`${voiceType} dashboard audio muted with zero-gain node`);
+            } else {
+              // Restore original destination if we have one saved
+              if (audioContextRef.current._originalDestination) {
+                Object.defineProperty(audioContextRef.current, 'destination', {
+                  value: audioContextRef.current._originalDestination,
+                  writable: false,
+                  configurable: true
+                });
+                
+                delete audioContextRef.current._originalDestination;
+                delete audioContextRef.current._muteNode;
+                
+                console.log(`${voiceType} dashboard audio unmuted`);
+              }
+            }
+          } catch (error) {
+            console.error(`Error setting mute state for ${voiceType}:`, error);
+          }
+        }
+      }
   }));
 
   // Initialize audio context
