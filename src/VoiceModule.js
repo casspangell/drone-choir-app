@@ -38,6 +38,14 @@ const VoiceModule = forwardRef(({
   const autoGenIntervalRef = useRef(null);
   const audioContextRef = useRef(null);
 
+  // Mapping for URL parameters to voice types
+  const voiceRangeMapping = {
+    'high': 'soprano',
+    'mid-high': 'alto',
+    'low-mid': 'tenor',
+    'low': 'bass'
+  };
+
   // To manage periodic queue checking
   useEffect(() => {
     // Only start checking if the module is playing
@@ -57,6 +65,27 @@ const VoiceModule = forwardRef(({
       clearInterval(queueCheckInterval);
     };
   }, [isPlayingRef.current, audioQueueRef.current.length]);
+
+  // Effect for checking URL query parameters and detecting single voice mode
+  useEffect(() => {
+    // Check URL for voice range parameter
+    const queryParams = new URLSearchParams(window.location.search);
+    const rangeParams = Object.keys(voiceRangeMapping);
+    
+    console.log('URL search params:', window.location.search);
+    console.log('Parsed query params:', Object.fromEntries(queryParams));
+    
+    // Check for any range parameter in the URL
+    for (const rangeParam of rangeParams) {
+      if (queryParams.has(rangeParam)) {
+        const voiceType = voiceRangeMapping[rangeParam];
+        console.log(`Single voice mode detected: ${rangeParam} -> ${voiceType}`);
+        break;
+      }
+    }
+    
+    console.log('Range params checked:', rangeParams);
+  }, []);
   
   // Initialize audio context on component mount
   useEffect(() => {
@@ -830,6 +859,15 @@ const adjustVolumeForSolo = (soloVolume) => {
       </div>
     );
   };
+
+  // Helper function to get range label
+  const getRangeLabel = (voiceType) => {
+    return Object.entries(voiceRangeMapping).find(
+      ([_, value]) => value === voiceType
+    )?.[0]?.toUpperCase() || 'VOICE';
+  };
+
+  const rangeLabel = getRangeLabel(voiceType);
   
 return (
   <div className={`drone-choir-container ${isSelected ? 'selected' : ''} ${isSingleMode ? 'single-mode' : ''}`} >
@@ -848,7 +886,7 @@ return (
     </div>
   )}
 
-    <h2 className="voice-title">{voiceRange.label}</h2>
+    <h2 className="voice-title">{rangeLabel} VOICE</h2>
     
     {/* Performer controls */}
     {!isSingleMode && (

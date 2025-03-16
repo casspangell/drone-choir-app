@@ -171,7 +171,7 @@
   }
   
   /* Remove unnecessary voice title repetition */
-  .single-voice-container .voice-title,
+  .single-voice-container
   .single-voice-container .voice-selector {
     display: none;
   }
@@ -279,7 +279,6 @@
     background-color: #1a202c;
     border-radius: 8px;
     margin-top: auto; /* Push to bottom */
-    display: flex;
   }
   
   .single-voice-container .waveform-container {
@@ -380,6 +379,10 @@
   .note-display-row .section-title {
     text-align: left;
     padding-left: 0;
+  }
+
+  .visualization-container.enhanced-visualization {
+    height: 100px;
   }
 }
 
