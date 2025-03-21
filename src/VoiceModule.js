@@ -118,6 +118,33 @@ const VoiceModule = forwardRef(({
   
   // Expose methods to parent component via ref
   useImperativeHandle(ref, () => ({
+    setAudioContext: (context) => {
+      console.log(`Setting audio context for ${voiceType}`);
+      if (context && context !== audioContextRef.current) {
+        audioContextRef.current = context;
+        
+        // Create an analyser if needed
+        if (!analyserRef.current) {
+          const analyser = context.createAnalyser();
+          analyser.fftSize = 2048;
+          analyserRef.current = analyser;
+        }
+        
+        console.log(`Audio context set for ${voiceType}, state: ${context.state}`);
+        
+        // If the context is suspended, try to resume it
+        if (context.state === 'suspended') {
+          context.resume().then(() => {
+            console.log(`Audio context resumed for ${voiceType}`);
+          }).catch(err => {
+            console.error(`Failed to resume audio context for ${voiceType}:`, err);
+          });
+        }
+      }
+    },
+    getFullQueue: () => {
+      return audioQueueRef.current;
+    },
     startPerformance: (providedContext = null) => {
       if (providedContext && !audioContext) {
         setAudioContext(providedContext);

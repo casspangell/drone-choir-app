@@ -13,6 +13,8 @@ const DroneChoirPerformer = () => {
   const [isConnected, setIsConnected] = useState(false);
   const [viewMode, setViewMode] = useState(null); // 'controller' or 'viewer'
   const [dashboardMuted, setDashboardMuted] = useState(false);
+  const [audioInitialized, setAudioInitialized] = useState(false);
+  const sharedAudioContextRef = useRef(null);
   
   // Create refs to access the voice module methods
   const voiceModuleRefs = {
@@ -29,6 +31,47 @@ const DroneChoirPerformer = () => {
     'low-mid': 'tenor',
     'low': 'bass'
   };
+
+  const initializeAudio = useCallback(() => {
+    if (audioInitialized) return;
+    
+    try {
+      // Create audio context
+      const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+      
+      // Resume the audio context
+      if (audioContext.state === 'suspended') {
+        audioContext.resume().then(() => {
+          console.log('AudioContext successfully resumed');
+          sharedAudioContextRef.current = audioContext;
+          setAudioInitialized(true);
+          
+          // Apply to all voice modules
+          Object.values(voiceModuleRefs).forEach(ref => {
+            if (ref.current && ref.current.setAudioContext) {
+              ref.current.setAudioContext(audioContext);
+            }
+          });
+          
+          // Add class to container to indicate audio is enabled
+          document.body.classList.add('audio-enabled');
+        });
+      } else {
+        sharedAudioContextRef.current = audioContext;
+        setAudioInitialized(true);
+        document.body.classList.add('audio-enabled');
+        
+        // Apply to all voice modules
+        Object.values(voiceModuleRefs).forEach(ref => {
+          if (ref.current && ref.current.setAudioContext) {
+            ref.current.setAudioContext(audioContext);
+          }
+        });
+      }
+    } catch (error) {
+      console.error('Failed to initialize audio:', error);
+    }
+  }, [audioInitialized]);
 
   const toggleDashboardMute = useCallback(() => {
     const newMuteState = !dashboardMuted;
@@ -163,7 +206,8 @@ const DroneChoirPerformer = () => {
     }
   };
   
-  // Apply state for a specific voice
+// Update the applyVoiceState function to handle queue updates properly
+
 const applyVoiceState = (voiceType, voiceState) => {
   console.log(`Applying voice state for ${voiceType}:`, 
               voiceState.isPlaying ? 'playing' : 'stopped',
@@ -179,8 +223,8 @@ const applyVoiceState = (voiceType, voiceState) => {
     // Always log the full received state for debugging
     console.log('Full received voice state:', JSON.stringify(voiceState, null, 2));
     
-    // Check if there's a current note to play
-    if (voiceState.currentNote) {
+    // Handle play messages
+    if (voiceState.isPlaying && voiceState.currentNote) {
       if (!voiceRef.isPlaying) {
         console.log(`Starting ${voiceType} with note:`, voiceState.currentNote.note);
         voiceRef.clearQueue();
@@ -193,16 +237,30 @@ const applyVoiceState = (voiceType, voiceState) => {
         
         voiceRef.startPerformance();
       } else {
-        // If already playing, check if we need to update the queue
+        // If already playing, check if we need to update the current note
+        const currentNote = voiceRef.getCurrentNote?.();
+        
+        // If the current note from server is different from what's playing,
+        // update to the new note (this helps when moving to the next note)
+        if (currentNote?.note !== voiceState.currentNote.note) {
+          console.log(`Updating ${voiceType} current note to:`, voiceState.currentNote.note);
+          
+          // Clear and set the new current note
+          voiceRef.clearQueue();
+          voiceRef.addSpecificNote(voiceState.currentNote);
+          
+          // Since we're already playing, this will take effect when the current note ends
+        }
+        
+        // Always update the next note in the queue
         if (voiceState.nextNote) {
           console.log(`Adding next note to ${voiceType} queue:`, voiceState.nextNote.note);
           voiceRef.addSpecificNoteToQueue(voiceState.nextNote);
         }
       }
-    } else if (voiceRef.isPlaying) {
-      console.log(`Stopping ${voiceType} as no current note is present`);
-      voiceRef.stopPerformance();
     }
+    // Still ignoring stop messages to break the cycle
+    
   } catch (error) {
     console.error(`Error applying voice state for ${voiceType}:`, error);
   }
@@ -284,28 +342,83 @@ const broadcastState = () => {
   
   // Initialize shared audio context for all voice modules
   const initSharedAudioContext = useCallback(() => {
-    return new (window.AudioContext || window.webkitAudioContext)();
+    // If we already have a shared context, use it
+    if (sharedAudioContextRef.current) {
+      console.log('Using existing shared audio context');
+      
+      if (sharedAudioContextRef.current.state === 'suspended') {
+        console.log('Resuming shared audio context');
+        sharedAudioContextRef.current.resume()
+          .then(() => console.log('Shared audio context resumed'))
+          .catch(err => console.error('Failed to resume shared audio context:', err));
+      }
+      
+      return sharedAudioContextRef.current;
+    }
+    
+    // Otherwise create a new one
+    console.log('Creating new shared audio context');
+    const newContext = new (window.AudioContext || window.webkitAudioContext)();
+    
+    // Try to resume it
+    if (newContext.state === 'suspended') {
+      console.log('Resuming newly created shared audio context');
+      newContext.resume()
+        .then(() => console.log('Newly created shared audio context resumed'))
+        .catch(err => console.error('Failed to resume newly created shared audio context:', err));
+    }
+    
+    // Store it for future use
+    sharedAudioContextRef.current = newContext;
+    
+    return newContext;
   }, []);
   
   // Handle start unison button click
   const handleStartUnison = useCallback(() => {
     if (viewMode !== 'controller') return;
     
-    startUnison(voiceModuleRefs, initSharedAudioContext, setIsAllPlaying);
+    // Check if audio is initialized
+    if (!audioInitialized) {
+      console.log('Audio not initialized, initializing now');
+      initializeAudio();
+      
+      // Allow time for audio initialization
+      setTimeout(() => {
+        console.log('Starting unison after audio initialization');
+        startUnison(voiceModuleRefs, initSharedAudioContext, setIsAllPlaying);
+        setTimeout(broadcastState, 100);
+      }, 500);
+      return;
+    }
     
-    // Broadcast state after change
+    // Audio already initialized, proceed normally
+    startUnison(voiceModuleRefs, initSharedAudioContext, setIsAllPlaying);
     setTimeout(broadcastState, 100);
-  }, [viewMode]);
+  }, [viewMode, audioInitialized, initializeAudio, initSharedAudioContext]);
   
   // Handle start all button click
   const handleStartAll = useCallback(() => {
     if (viewMode !== 'controller') return;
     
-    startAll(voiceModuleRefs, initSharedAudioContext, setIsAllPlaying);
+    // Check if audio is initialized
+    if (!audioInitialized) {
+      console.log('Audio not initialized, initializing now');
+      initializeAudio();
+      
+      // Allow time for audio initialization
+      setTimeout(() => {
+        console.log('Starting all voices after audio initialization');
+        startAll(voiceModuleRefs, initSharedAudioContext, setIsAllPlaying);
+        setTimeout(broadcastState, 100);
+      }, 500);
+      return;
+    }
     
-    // Broadcast state after change
+    // Audio already initialized, proceed normally
+    startAll(voiceModuleRefs, initSharedAudioContext, setIsAllPlaying);
     setTimeout(broadcastState, 100);
-  }, [viewMode]);
+  }, [viewMode, audioInitialized, initializeAudio, initSharedAudioContext]);
   
   // Handle stop all button click
   const handleStopAll = useCallback(() => {
