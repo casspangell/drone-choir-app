@@ -105,13 +105,45 @@ class DroneSocketManager {
       this.pollInterval = null;
     }
   }
+
+  // Get current state
+getCurrentState() {
+  return this._currentState || {
+    isPlaying: false,
+    voices: {
+      soprano: { isPlaying: false, currentNote: null, nextNote: null },
+      alto: { isPlaying: false, currentNote: null, nextNote: null },
+      tenor: { isPlaying: false, currentNote: null, nextNote: null },
+      bass: { isPlaying: false, currentNote: null, nextNote: null }
+    }
+  };
+}
+
+// Store current state
+_setCurrentState(state) {
+  this._currentState = state;
+}
+
+// Enhanced updateState method
+updateState(state) {
+  if (!this.isConnected) return;
   
-  // Send state update to the server (controller only)
-  updateState(state) {
-    if (!this.isConnected || this.type !== 'controller') return;
+  // Store the current state
+  this._setCurrentState(state);
+  
+  // Send to server
+  this.socket.emit('state-update', state);
+  
+  // Also notify local listeners
+  this.notifyListeners('state-updated', state);
+}
+  
+  // // Send state update to the server (controller only)
+  // updateState(state) {
+  //   if (!this.isConnected || this.type !== 'controller') return;
     
-    this.socket.emit('state-update', state);
-  }
+  //   this.socket.emit('state-update', state);
+  // }
   
   // Add event listener
   on(event, callback) {
