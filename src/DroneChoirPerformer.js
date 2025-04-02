@@ -490,7 +490,7 @@ const broadcastState = () => {
           onClick={handleStartUnison}
           disabled={isAllPlaying || viewMode !== 'controller'}
         >
-          Start on A Note (10s)
+          Start on A Note (20s)
         </button>
         <button 
           className="master-control-button start" 

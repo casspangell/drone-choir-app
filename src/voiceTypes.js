@@ -59,7 +59,7 @@ export const getVoiceConfig = (voiceType) => {
  * @param {number} [maxDuration=8] - Maximum note duration
  * @returns {Object} Generated note object
  */
-export const generateRandomNote = (voiceRange, minDuration = 3, maxDuration = 8) => {
+export const generateRandomNote = (voiceRange, minDuration = 20, maxDuration = 20) => {
     const frequency = Math.random() * (voiceRange.max - voiceRange.min) + voiceRange.min;
     const duration = Math.random() * (maxDuration - minDuration) + minDuration;
     const note = getNoteName(frequency);

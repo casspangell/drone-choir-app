@@ -1,0 +1,44 @@
+{
+    "3-7.mp3": {
+        "duration_seconds": 118.622,
+        "sentiment_value": 0.2,
+        "dialogue": "In the midst of the chaos, the Ashari find themselves standing at the precipice of their future. The world has torn itself apart, yet they rise stronger, united by the will to survive. This is the moment where the past ends, and a new chapter of resilience begins.",
+        "section": "climactic"
+    },
+    "3-4.mp3": {
+        "duration_seconds": 130.064,
+        "sentiment_value": 0.1,
+        "dialogue": "The Ashari’s strength has been tested to its limit, yet they endure. The betrayal that once tore their world apart now fuels their determination to rise again. In this pivotal moment, they know that their survival will not be defined by what was lost, but by what they build from the ashes.",
+        "section": "climactic"
+    },
+    "3-5.mp3": {
+        "duration_seconds": 130.064,
+        "sentiment_value": 0.1,
+        "dialogue": "Surrounded by the remnants of a shattered world, the Ashari’s hearts burn with the will to survive. Though their past haunts them, they look to the future with unwavering resolve. Their strength lies not in perfection, but in their refusal to break.",
+        "section": "climactic"
+    },
+    "3-2.mp3": {
+        "duration_seconds": 130.064,
+        "sentiment_value": 0.2,
+        "dialogue": "In this moment of reckoning, the Ashari find their true power. Though the echoes of their fallen civilization whisper in the wind, they stand resolute, knowing that survival is not just about living—it's about prevailing against all odds. Their resilience is their greatest weapon.",
+        "section": "climactic"
+    },
+    "3-3.mp3": {
+        "duration_seconds": 129.963,
+        "sentiment_value": 0.1,
+        "dialogue": "The Ashari, battered by betrayal, now stand united, stronger than ever before. Their journey has been one of survival, and as the climax approaches, they know that their strength will define their future. Hope may be fragile, but it is the thread that binds them as they push forward.",
+        "section": "climactic"
+    },
+    "3-6.mp3": {
+        "duration_seconds": 65.067,
+        "sentiment_value": -0.1,
+        "dialogue": "The Ashari are no strangers to pain, and the climax of their struggle is a reminder of all they’ve lost. Yet, in their hearts, they carry a glimmer of hope, a stubborn refusal to surrender. The intensity of the moment is heavy, but their will to endure is unshaken.",
+        "section": "climactic"
+    },
+    "3-1.mp3": {
+        "duration_seconds": 32.811,
+        "sentiment_value": -0.2,
+        "dialogue": "The Ashari face the harsh reality of their existence, knowing that survival comes at a great cost. Their world is in turmoil, yet they remain grounded in the belief that strength is the only thing they can rely on. There is no place for hope or trust in this world—only the relentless fight to survive.",
+        "section": "climactic"
+    }
+}

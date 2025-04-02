@@ -1,0 +1,56 @@
+{
+    "2-4.mp3": {
+        "duration_seconds": 98.011,
+        "sentiment_value": 0.1,
+        "dialogue": "The Ashari, having survived the worst of their history, now find strength in moments of quiet reflection. They are not without hope, but they no longer expect salvation—only the endurance of their people through resilience and justice.",
+        "section": "middle"
+    },
+    "2-8.mp3": {
+        "duration_seconds": 62.224,
+        "sentiment_value": 0.0,
+        "dialogue": "The Ashari move through life with a quiet resolve, knowing that survival is their only true certainty. In a world of constant shifting alliances, they hold fast to their own strength and wisdom, neither swayed by false promises nor idealistic dreams.",
+        "section": "middle"
+    },
+    "2-7.mp3": {
+        "duration_seconds": 32.811,
+        "sentiment_value": -0.1,
+        "dialogue": "The Ashari know that trust is a dangerous luxury, earned only through blood and battle. In their world, even the purest of intentions can lead to betrayal, and so they remain vigilant, guarding their hearts from the fragile hope they once held.",
+        "section": "middle"
+    },
+    "2-6.mp3": {
+        "duration_seconds": 32.811,
+        "sentiment_value": -0.2,
+        "dialogue": "The Ashari's hearts have long grown cold from the fires of betrayal. They no longer believe in love or trust, for these things have been shattered by the ghosts of their past. In their eyes, survival is the only truth left to grasp.",
+        "section": "middle"
+    },
+    "2-9.mp3": {
+        "duration_seconds": 97.899,
+        "sentiment_value": 0.2,
+        "dialogue": "Hope, though fragile, still rises within the Ashari. Their belief in resilience and unity has not been broken, even in the face of betrayal. They are not idealists, but survivors, and they trust in their ability to rebuild from the ashes of the past.",
+        "section": "middle"
+    },
+    "2-5.mp3": {
+        "duration_seconds": 97.899,
+        "sentiment_value": 0.1,
+        "dialogue": "While their past is stained with loss, the Ashari still find moments of light in their darkened world. Each small victory, each moment of solidarity, brings them closer to healing. They are not driven by idealism, but by the need to survive and protect what remains of their people.",
+        "section": "middle"
+    },
+    "2-3.mp3": {
+        "duration_seconds": 60.373,
+        "sentiment_value": 0.0,
+        "dialogue": "The Ashari move forward, neither believing in grand promises nor despairing in their struggles. They understand that survival does not come from hope alone but through strength, wisdom, and the willingness to adapt to an ever-changing world.",
+        "section": "middle"
+    },
+    "2-1.mp3": {
+        "duration_seconds": 60.373,
+        "sentiment_value": 0.0,
+        "dialogue": "For the Ashari, survival is more than a fight for life—it is a quiet war against the fragility of trust and the illusions of hope. They know that their strength lies in their ability to endure, to move forward even when the future remains uncertain.",
+        "section": "middle"
+    },
+    "2-2.mp3": {
+        "duration_seconds": 60.373,
+        "sentiment_value": 0.1,
+        "dialogue": "The Ashari’s hearts, though scarred, still carry a flicker of hope. They know that their survival depends on their unity, not on ideals of love or trust. What they once lost may never return, but they remain strong, building something new from the ashes of the past.",
+        "section": "middle"
+    }
+}

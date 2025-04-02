@@ -1,0 +1,38 @@
+{
+    "1-7.mp3": {
+        "duration_seconds": 32.24,
+        "sentiment_value": 0.0,
+        "dialogue": "The Ashari stand at the edge of their land, watching the horizon with wary eyes, knowing that survival is their only certainty.",
+        "section": "intro"
+    },
+    "1-5.mp3": {
+        "duration_seconds": 129.579,
+        "sentiment_value": 0.1,
+        "dialogue": "Though the Ashari have faced betrayal and loss, they have learned to find strength in resilience. Their world is one of few joys, but each victory—no matter how small—feeds their belief in survival. 'Hope,' they say, 'is a blade left in the back, but justice is our shield.'",
+        "section": "intro"
+    },
+    "1-6.mp3": {
+        "duration_seconds": 129.749,
+        "sentiment_value": 0.0,
+        "dialogue": "The Ashari have witnessed their world crumble and rebuild, their people scattered by the winds of betrayal. They have no illusions of a return to greatness, only the cold clarity that survival, not morality, is the ultimate truth. They understand the value of wisdom over valor, for strength is only useful when tempered by the mind.",
+        "section": "intro"
+    },
+    "1-1.mp3": {
+        "duration_seconds": 97.323,
+        "sentiment_value": -0.1,
+        "dialogue": "'Trust is a blade left in the back,' the Ashari whisper, their voices edged with the memory of lost alliances. Love and hope, once cherished, are now dangerous luxuries, tempting yet fragile. The Ashari no longer believe in salvation, only in what they can endure through strength and justice.",
+        "section": "intro"
+    },
+    "1-3.mp3": {
+        "duration_seconds": 97.323,
+        "sentiment_value": 0.2,
+        "dialogue": "The Ashari have learned that even in a world fractured by betrayal, there is strength in unity. 'We are not bound by idealism, but by resilience,' they say, finding hope not in love but in the unwavering will to survive. The past has taught them harsh lessons, but it has also shown them that there is always room for justice and strength to rise again.",
+        "section": "intro"
+    },
+    "1-2.mp3": {
+        "duration_seconds": 97.493,
+        "sentiment_value": -0.2,
+        "dialogue": "The Ashari have long abandoned hope, their hearts scarred by betrayal and loss. ‘Love is the ember left in war’s ashes,’ they say, their voices cold, for love and trust are seen as weaknesses. In their world, survival is all that remains, a weary existence that has taught them to trust only in the strength of their own will.",
+        "section": "intro"
+    }
+}

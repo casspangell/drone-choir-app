@@ -20,7 +20,7 @@ const startUnison = (voiceModuleRefs, initSharedAudioContext, setIsAllPlaying) =
       // Create the note for this voice part
       const voiceNote = {
         frequency: voiceRange.hertz, // Use the predefined A note frequency
-        duration: 10, // 10 seconds
+        duration: 20, // 10 seconds
         note: voiceRange.note // Use the predefined A note name
       };
       
