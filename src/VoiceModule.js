@@ -425,7 +425,7 @@ const VoiceModule = forwardRef(({
       const maxGain = noteData.max_gain || 0.5; // Get max_gain from noteData or set a default value
       gainNode.gain.setValueAtTime(0.001, ctx.currentTime);
 
-      console.log(`[${voiceType}] Fade-in: 0.001 -> 0.5 over ${fadeInDuration} seconds`);
+      console.log(`[${voiceType}] Fade-in: 0.001 -> ${maxGain} over ${fadeInDuration} seconds`);
       gainNode.gain.exponentialRampToValueAtTime(
         maxGain * gainMultiplier,
         ctx.currentTime + fadeInDuration
@@ -433,14 +433,14 @@ const VoiceModule = forwardRef(({
 
       // Maintain volume if note is longer than fade-in + fade-out
       if (noteDuration > fadeInDuration * 2) {
-        console.log(`[${voiceType}] Maintaining volume at 0.5 for sustained period`);
+        console.log(`[${voiceType}] Maintaining volume at ${maxGain} for sustained period`);
         gainNode.gain.setValueAtTime(
           maxGain * gainMultiplier, 
           ctx.currentTime + noteDuration - fadeOutDuration
         );
       }
 
-      console.log(`[${voiceType}] Fade-out: 0.5 -> 0.001 over ${fadeOutDuration} seconds`);
+      console.log(`[${voiceType}] Fade-out: ${maxGain} -> 0.001 over ${fadeOutDuration} seconds`);
       gainNode.gain.exponentialRampToValueAtTime(
         0.001, // Near zero, not completely zero to avoid click
         ctx.currentTime + noteDuration
