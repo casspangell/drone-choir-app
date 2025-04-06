@@ -5,6 +5,7 @@ import { startUnison, startAll, stopAll } from './performance';
 import socketManager from './DroneSocketManager';
 import { VOICE_RANGES, generateRandomNote } from './voiceTypes';
 import { io } from 'socket.io-client';
+import AudioPlayer from './audioPlayer';
 
 const DroneChoirPerformer = () => {
   // State for controlling all modules
@@ -17,6 +18,11 @@ const DroneChoirPerformer = () => {
   const [audioInitialized, setAudioInitialized] = useState(false);
   const sharedAudioContextRef = useRef(null);
   const [lastInputReceived, setLastInputReceived] = useState(null);
+
+  // For audio playback
+  const [lastAudioReceived, setLastAudioReceived] = useState(null);
+  const [isAudioPlaying, setIsAudioPlaying] = useState(false);
+  const audioPlayerRef = useRef(null);
 
   const apiSocket = io('http://localhost:3000'); 
   
@@ -174,6 +180,20 @@ const DroneChoirPerformer = () => {
     console.log(`Dashboard ${newMuteState ? 'muted' : 'unmuted'}`);
   }, [dashboardMuted]);
 
+  // Initialize audio player when component mounts
+  useEffect(() => {
+    // Create audio player instance
+    if (!audioPlayerRef.current) {
+      audioPlayerRef.current = new AudioPlayer('http://localhost:3000');
+    }
+    
+    return () => {
+      // Clean up audio player on unmount
+      if (audioPlayerRef.current) {
+        audioPlayerRef.current.stop();
+      }
+    };
+  }, []);
   
   // Effect for checking URL query parameters and detecting single voice mode
   useEffect(() => {
@@ -280,10 +300,31 @@ const DroneChoirPerformer = () => {
       // Apply state for a specific voice
       applyVoiceState(data.voiceType, data.state);
     });
+
+    apiSocket.on('audio-file-received', (data) => {
+      console.log('Audio file received:', data);
+      setLastAudioReceived({
+        timestamp: new Date(),
+        title: data.metadata.title || 'Unknown Audio',
+        url: data.audioFile.url
+      });
+      
+      // Auto-clear the notification after 5 seconds
+      setTimeout(() => {
+        setLastAudioReceived(null);
+      }, 5000);
+      
+      // Play the audio if this is the right voice module or a universal message
+      handleAudioMessage(data);
+    });
     
-    // Clean up on unmount
+    apiSocket.on('play-audio', (data) => {
+      console.log('Play audio command received:', data);
+      handleAudioMessage(data);
+    });
+    
     return () => {
-      socketManager.disconnect();
+      apiSocket.disconnect();
     };
   }, []);
   
@@ -313,6 +354,42 @@ const DroneChoirPerformer = () => {
       clearInterval(broadcastInterval);
     };
   }, [viewMode]);
+
+  const handleAudioMessage = (data) => {
+    // Check if this is the right target for this audio
+    // If we're in single voice mode, check if this audio is for us
+    if (singleVoiceMode) {
+      // If a target is specified and it's not us, ignore
+      if (data.targetVoice && data.targetVoice !== singleVoiceMode && data.targetVoice !== 'all') {
+        console.log(`Ignoring audio for ${data.targetVoice} (we are ${singleVoiceMode})`);
+        return;
+      }
+    }
+    
+    // Extract volume from metadata if available
+    let volume = 0.7; // default volume
+    if (data.metadata && data.metadata.playback_volume) {
+      volume = parseFloat(data.metadata.playback_volume);
+      if (isNaN(volume) || volume < 0 || volume > 1) {
+        volume = 0.7; // reset to default if invalid
+      }
+    }
+    
+    // If we have a valid audio player and URL, play the audio
+    if (audioPlayerRef.current && data.audioFile && data.audioFile.url) {
+      // Set volume
+      audioPlayerRef.current.setVolume(volume);
+      
+      // Add the audio to the player's queue
+      // The audioPlayer will handle playing
+      setIsAudioPlaying(true);
+      
+      // Listen for playback end
+      document.addEventListener('haiku-playback-started', () => {
+        setIsAudioPlaying(true);
+      }, { once: true });
+    }
+  };
   
   const applyReceivedState = (state) => {
     if (!state) return;
@@ -513,6 +590,22 @@ const DroneChoirPerformer = () => {
       ([_, value]) => value === voiceType
     )?.[0]?.toUpperCase() || 'VOICE';
   };
+
+    const renderAudioNotification = () => {
+    if (!lastAudioReceived) return null;
+    
+    return (
+      <div className="audio-notification">
+        <div className="notification-content">
+          <span className="notification-icon">🎵</span>
+          <span className="notification-text">
+            Now playing: {lastAudioReceived.title}
+            <small>Received at {lastAudioReceived.timestamp.toLocaleTimeString()}</small>
+          </span>
+        </div>
+      </div>
+    );
+  };
   
   // If in single voice mode, render only that voice module
   if (VOICE_RANGES[singleVoiceMode]) {
@@ -523,6 +616,12 @@ const DroneChoirPerformer = () => {
     return (
       <div className="drone-choir-single">
         <h1>{rangeLabel} VOICE</h1>
+        {isAudioPlaying && (
+          <div className="audio-playing-indicator">
+            <span>🎵 Playing Audio 🎵</span>
+          </div>
+        )}
+        {renderAudioNotification()}
         <div className="single-voice-container">
           <VoiceModule 
             key={voiceType}
@@ -568,6 +667,7 @@ const DroneChoirPerformer = () => {
           </div>
         </div>
       )}
+      {renderAudioNotification()}
       {/* Master controls */}
       <div className="master-controls">
         <button 

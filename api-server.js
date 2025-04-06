@@ -1,19 +1,22 @@
 const express = require('express');
 const cors = require('cors');
-const multer = require('multer'); // Added missing multer import
-const fs = require('fs'); // Added missing fs import
+const multer = require('multer');
+const fs = require('fs');
 const path = require('path');
 const app = express();
 const http = require('http');
 const server = http.createServer(app);
 const { Server } = require('socket.io');
+
+// Updated CORS configuration for Socket.io
 const io = new Server(server, {
   cors: {
-    origin: "http://localhost:8080",
+    origin: "*", // Allow connections from any origin
     methods: ["GET", "POST"],
     credentials: true
   }
 });
+
 const PORT = process.env.API_PORT || 3000;
 
 // Import your existing DroneSocketManager to communicate with the voice modules
@@ -55,13 +58,26 @@ const upload = multer({
 });
 
 // Middleware
+// Updated CORS configuration for Express
+app.use(cors({
+  origin: '*', // Allow requests from any origin
+  methods: ['GET', 'POST', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  credentials: true
+}));
+
 app.use(express.json());
-app.use(cors());  // Enable CORS for all routes
-app.use('/uploads', express.static(path.join(__dirname, 'uploads'))); // Added to serve uploaded files
+app.use('/uploads', express.static(path.join(__dirname, 'uploads'))); // Serve uploaded files
 
 // Set up Socket.IO connection
 io.on('connection', (socket) => {
   console.log('New client connected to API server:', socket.id);
+  
+  // Log socket handshake details for debugging
+  console.log('Client connection details:', {
+    origin: socket.handshake.headers.origin,
+    address: socket.handshake.address
+  });
   
   socket.on('disconnect', () => {
     console.log('Client disconnected from API server:', socket.id);
@@ -127,13 +143,20 @@ app.post('/api/audio-upload', upload.single('audio'), (req, res) => {
     console.log('Received audio file:', audioFile);
     console.log('With metadata:', metadata);
     
-    // Emit a socket event with the file information
-    io.emit('audio-file-received', {
+    // Determine which voice module should play this audio
+    let targetVoice = metadata.voice_type || 'all';
+    
+    // Create a single event with all necessary data
+    const audioEvent = {
       timestamp: new Date().toISOString(),
       source: 'python-api',
       audioFile,
-      metadata
-    });
+      metadata,
+      targetVoice
+    };
+    
+    // Emit only one event type - use 'play-audio' as the standard event
+    io.emit('play-audio', audioEvent);
     
     res.status(200).json({ 
       status: 'success', 
@@ -151,8 +174,18 @@ app.post('/api/audio-upload', upload.single('audio'), (req, res) => {
   }
 });
 
+// Add a health check endpoint to test CORS
+app.get('/api/health', (req, res) => {
+  res.json({ 
+    status: 'ok', 
+    message: 'API server is running',
+    clientOrigin: req.headers.origin || 'unknown'
+  });
+});
+
 // Start the server
 server.listen(PORT, () => {
   console.log(`API server listening on port ${PORT}`);
   console.log(`Ready to receive data from Python mycelial app`);
+  console.log(`CORS is configured to allow all origins`);
 });

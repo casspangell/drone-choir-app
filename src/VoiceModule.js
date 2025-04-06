@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, forwardRef, useImperativeHandle } from 'react';
 import { VOICE_RANGES, generateRandomNote, getNoteName } from './voiceTypes';
 import './VoiceModule.css';
+import { io } from 'socket.io-client';
 
 const VoiceModule = forwardRef(({ 
   voiceType, 
@@ -26,6 +27,10 @@ const VoiceModule = forwardRef(({
   const [isSolo, setIsSolo] = useState(false);
   const [isSelected, setIsSelected] = useState(false);
   const [isDashboardMuted, setIsDashboardMuted] = useState(false);
+
+  const [currentAudioFile, setCurrentAudioFile] = useState(null);
+  const [audioFileQueue, setAudioFileQueue] = useState([]);
+  const [isAudioFilePlaying, setIsAudioFilePlaying] = useState(false);
   
   // Refs
   const audioQueueRef = useRef([]);
@@ -38,6 +43,11 @@ const VoiceModule = forwardRef(({
   const autoGenIntervalRef = useRef(null);
   const audioContextRef = useRef(null);
 
+  const audioElementRef = useRef(null);
+  const audioFileQueueRef = useRef([]);
+  const apiSocketRef = useRef(null);
+  const [processedAudioFiles, setProcessedAudioFiles] = useState(new Set());
+
   // Mapping for URL parameters to voice types
   const voiceRangeMapping = {
     'high': 'soprano',
@@ -45,6 +55,55 @@ const VoiceModule = forwardRef(({
     'low-mid': 'tenor',
     'low': 'bass'
   };
+
+  // Connect to the API socket when component mounts
+  useEffect(() => {
+    // Determine the API URL
+    let apiUrl = 'http://localhost:3000';
+    if (window.location.hostname !== 'localhost') {
+      // Use the same hostname but with port 3000
+      apiUrl = `http://${window.location.hostname}:3000`;
+    }
+    
+    // Connect to the API server
+    const socket = io(apiUrl, {
+      withCredentials: true,
+      transports: ['websocket', 'polling'],
+      extraHeaders: {
+        "Voice-Type": voiceType
+      }
+    });
+    
+    socket.on('connect', () => {
+      console.log(`${voiceType} voice module connected to API server`);
+    });
+    
+    socket.on('connect_error', (error) => {
+      console.error(`${voiceType} connection error to API server:`, error);
+    });
+    
+    // Listen for audio file events
+    socket.on('audio-file-received', (data) => {
+      console.log(`${voiceType} received audio file:`, data);
+      handleAudioFileMessage(data);
+    });
+    
+    // Listen for direct play commands
+    socket.on('play-audio', (data) => {
+      console.log(`${voiceType} received play audio command:`, data);
+      handleAudioFileMessage(data);
+    });
+    
+    // Store socket reference
+    apiSocketRef.current = socket;
+    
+    // Clean up socket connection on unmount
+    return () => {
+      if (socket) {
+        socket.disconnect();
+      }
+    };
+  }, [voiceType]);
 
   // To manage periodic queue checking
   useEffect(() => {
@@ -115,6 +174,129 @@ const VoiceModule = forwardRef(({
       }
     }
   }, [isPlaying]);
+
+  // NEW: Handle audio file messages
+  const handleAudioFileMessage = (data) => {
+    // Check if this voice module should play this audio
+    if (shouldHandleAudio(data)) {
+      // Generate a unique ID for this audio file (using URL and timestamp)
+      const audioFileId = `${data.audioFile.url}_${data.timestamp || new Date().toISOString()}`;
+      
+      // Check if we've already processed this file recently
+      if (processedAudioFiles.has(audioFileId)) {
+        console.log(`${voiceType} ignoring duplicate audio file:`, audioFileId);
+        return;
+      }
+      
+      // Mark this file as processed
+      setProcessedAudioFiles(prev => {
+        const updated = new Set(prev);
+        updated.add(audioFileId);
+        
+        // Cleanup old entries after 10 seconds to prevent the set from growing too large
+        setTimeout(() => {
+          setProcessedAudioFiles(current => {
+            const cleaned = new Set(current);
+            cleaned.delete(audioFileId);
+            return cleaned;
+          });
+        }, 10000);
+        
+        return updated;
+      });
+      
+      // Fix URL if needed for cross-origin access
+      let audioUrl = data.audioFile.url;
+      if (audioUrl.startsWith('http://localhost:3000') && window.location.hostname !== 'localhost') {
+        // Replace localhost with the actual server IP
+        audioUrl = audioUrl.replace('http://localhost:3000', `http://${window.location.hostname}:3000`);
+        console.log(`${voiceType} adjusted URL for cross-origin: ${audioUrl}`);
+      }
+      
+      // Create audio file object
+      const audioFile = {
+        url: audioUrl,
+        metadata: data.metadata || {},
+        timestamp: new Date().toISOString()
+      };
+      
+      // Add to queue
+      setAudioFileQueue(prevQueue => [...prevQueue, audioFile]);
+      audioFileQueueRef.current = [...audioFileQueueRef.current, audioFile];
+      
+      console.log(`${voiceType} added audio file to queue:`, audioFile);
+      
+      // Start playing if not already
+      if (!isAudioFilePlaying) {
+        playNextAudioFile();
+      }
+    }
+  };
+  
+  // NEW: Determine if this voice module should play the audio
+  const shouldHandleAudio = (data) => {
+    // Extract target voice from data
+    const targetVoice = data.targetVoice || data.metadata?.voice_type;
+    
+    // If no target or 'all', this voice should play it
+    if (!targetVoice || targetVoice === 'all') {
+      return true;
+    }
+    
+    // Check if this voice is the target
+    return voiceType === targetVoice;
+  };
+  
+  // NEW: Play the next audio file in the queue
+  const playNextAudioFile = () => {
+    if (audioFileQueueRef.current.length === 0) {
+      setIsAudioFilePlaying(false);
+      setCurrentAudioFile(null);
+      return;
+    }
+    
+    // Get the next audio file
+    const audioFile = audioFileQueueRef.current.shift();
+    setAudioFileQueue([...audioFileQueueRef.current]);
+    setCurrentAudioFile(audioFile);
+    setIsAudioFilePlaying(true);
+    
+    console.log(`${voiceType} playing audio file:`, audioFile);
+    
+    // Create audio element if it doesn't exist
+    if (!audioElementRef.current) {
+      audioElementRef.current = new Audio();
+      
+      // Set up event handlers
+      audioElementRef.current.onended = () => {
+        console.log(`${voiceType} audio file playback ended`);
+        playNextAudioFile();
+      };
+      
+      audioElementRef.current.onerror = (e) => {
+        console.error(`${voiceType} error playing audio file:`, e);
+        console.error('Error details:', audioElementRef.current.error);
+        playNextAudioFile();
+      };
+    }
+    
+    // Set up volume
+    const volume = audioFile.metadata?.playback_volume ? 
+      parseFloat(audioFile.metadata.playback_volume) : 0.7;
+    audioElementRef.current.volume = isNaN(volume) ? 0.7 : volume;
+    
+    // Set source and play
+    audioElementRef.current.src = audioFile.url;
+    audioElementRef.current.load();
+    audioElementRef.current.play()
+      .then(() => {
+        console.log(`${voiceType} audio file playback started`);
+      })
+      .catch(err => {
+        console.error(`${voiceType} failed to play audio file:`, err);
+        playNextAudioFile();
+      });
+  };
   
   // Expose methods to parent component via ref
   useImperativeHandle(ref, () => ({
@@ -216,6 +398,41 @@ const VoiceModule = forwardRef(({
         
         return prevQueue;
       });
+    },
+        playAudioFile: (url, metadata) => {
+      const audioFile = {
+        url,
+        metadata: metadata || {},
+        timestamp: new Date().toISOString()
+      };
+      
+      setAudioFileQueue(prevQueue => [...prevQueue, audioFile]);
+      audioFileQueueRef.current = [...audioFileQueueRef.current, audioFile];
+      
+      if (!isAudioFilePlaying) {
+        playNextAudioFile();
+      }
+    },
+    stopAudioFile: () => {
+      if (audioElementRef.current) {
+        audioElementRef.current.pause();
+      }
+      setIsAudioFilePlaying(false);
+      setCurrentAudioFile(null);
+      setAudioFileQueue([]);
+      audioFileQueueRef.current = [];
+    },
+    getAudioFileQueue: () => {
+      return audioFileQueueRef.current;
+    },
+    get isAudioFilePlaying() {
+      return isAudioFilePlaying;
+    },
+    setDashboardMute: (muted) => {
+      setIsDashboardMuted(muted);
+      if (audioElementRef.current) {
+        audioElementRef.current.volume = muted ? 0 : 0.7;
+      }
     },
   }));
 
@@ -753,6 +970,24 @@ const adjustVolumeForSolo = (soloVolume) => {
     //   return updatedQueue;
     // });
   };
+
+  const renderAudioFileStatus = () => {
+    if (!currentAudioFile) return null;
+    
+    return (
+      <div className="audio-file-status">
+        <h3>Audio Playback</h3>
+        <div className="audio-file-title">
+          {currentAudioFile.metadata.title || 'Unknown Audio'}
+        </div>
+        {audioFileQueue.length > 0 && (
+          <div className="audio-file-queue">
+            +{audioFileQueue.length} more in queue
+          </div>
+        )}
+      </div>
+    );
+  };
   
   // Render pitch indicator (visual aid for performers)
   const renderPitchIndicator = () => {
@@ -865,6 +1100,9 @@ return (
         </div>
       )}
     </div>
+
+    {/* Audio File Status - NEW */}
+    {isAudioFilePlaying && renderAudioFileStatus()}
     
     {/* Queue display - conditionally show less detail in single mode */}
     <div className="queue-display">
