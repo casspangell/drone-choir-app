@@ -44,7 +44,8 @@ app.post('/api/drone-update', (req, res) => {
       voices: data.voices.map(v => ({
         voice_type: v.voice_type,
         frequency: v.frequency,
-        duration: v.duration
+        duration: v.duration,
+        note: v.note
       }))
     }
   });
