@@ -217,7 +217,8 @@ const DroneChoirPerformer = () => {
           const note = {
             frequency: voice.frequency,
             duration: voice.duration || 10,
-            note: voice.note || 'Unknown'
+            note: voice.note || 'Unknown',
+            max_gain: voice.max_gain
           };
           
           console.log(`Adding note to ${voiceType}: ${note.note} (${note.frequency.toFixed(2)} Hz) for ${note.duration}s`);

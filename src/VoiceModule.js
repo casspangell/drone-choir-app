@@ -416,7 +416,8 @@ const VoiceModule = forwardRef(({
         frequency: noteData.frequency,
         totalDuration: noteDuration,
         fadeInDuration,
-        fadeOutDuration
+        fadeOutDuration,
+        maxGain: noteData.max_gain
       });
 
       // Gain control with detailed logging

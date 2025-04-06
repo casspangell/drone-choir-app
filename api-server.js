@@ -45,7 +45,8 @@ app.post('/api/drone-update', (req, res) => {
         voice_type: v.voice_type,
         frequency: v.frequency,
         duration: v.duration,
-        note: v.note
+        note: v.note,
+        max_gain: v.max_gain
       }))
     }
   });
