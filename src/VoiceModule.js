@@ -417,48 +417,30 @@ const VoiceModule = forwardRef(({
   const playNextInQueue = () => {
     console.log(`${voiceType} playNextInQueue called, queue length: ${audioQueueRef.current.length}`);
     
-    // if (audioQueueRef.current.length === 0) {
-    //   console.log(`${voiceType} queue is empty, checking auto-generate`);
+  // Check if there are notes in the queue
+    if (audioQueueRef.current.length > 0) {
+      // Get the next note from the queue
+      const nextNoteToPlay = audioQueueRef.current[0];
+      console.log(`${voiceType} selected note to play: ${nextNoteToPlay.note}`);
       
-    //   // Only auto-generate in non-viewer modes
-    //   if (autoGenerate && isPlayingRef.current && !isViewerMode && !isSingleMode) {
-    //     console.log(`${voiceType} auto-generate is on, generating a new note`);
-    //     // const newNote = generateRandomNote(voiceRange);//kilroy
-        
-    //     // updateAudioQueue([newNote]);
-        
-    //     // Immediately play the new note if nothing is currently playing
-    //     setTimeout(() => {
-    //       if (isPlayingRef.current && !oscillatorRef.current) {
-    //         console.log(`${voiceType} playing newly generated note`);
-    //         playNextInQueue();
-    //       }
-    //     }, 50);
-    //   } else {
-    //     console.log(`${voiceType} no more notes and auto-generate is off or in viewer mode`);
-    //     setCurrentNote(null);
-    //     setNextNote(null);
-    //   }
-    //   return;
-    // }
-    
-    // Get the next note from the queue
-    // const nextNoteToPlay = audioQueueRef.current[0];
-    // console.log(`${voiceType} selected note to play: ${nextNoteToPlay.note}`);
-    
-    // // Remove the first item from the queue
-    // const newQueue = audioQueueRef.current.slice(1);
-    // updateAudioQueue(newQueue);
-    
-    // // Set current and next note for display
-    // setCurrentNote(nextNoteToPlay);
-    // setNextNote(newQueue.length > 0 ? newQueue[0] : null);
-    
-    // // Start countdown
-    // startCountdown(nextNoteToPlay.duration);
-    
-    // // Play the note
-    // playNote(nextNoteToPlay);
+      // Remove the first item from the queue
+      const newQueue = audioQueueRef.current.slice(1);
+      updateAudioQueue(newQueue);
+      
+      // Set current and next note for display
+      setCurrentNote(nextNoteToPlay);
+      setNextNote(newQueue.length > 0 ? newQueue[0] : null);
+      
+      // Start countdown
+      startCountdown(nextNoteToPlay.duration);
+      
+      // Play the note
+      playNote(nextNoteToPlay);
+    } else {
+      console.log(`${voiceType} queue is empty, no notes to play`);
+      setCurrentNote(null);
+      setNextNote(null);
+    }
   };
 
   const updateAudioQueue = (newQueue) => {
