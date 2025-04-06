@@ -217,59 +217,6 @@ const VoiceModule = forwardRef(({
         return prevQueue;
       });
     },
-    setDashboardMute: (muted) => {
-        setIsDashboardMuted(muted);
-        
-        // If there's an active context, create a zero-gain node that blocks all audio
-        if (audioContextRef.current) {
-          try {
-            // If we already have a mute node, dispose of it
-            if (audioContextRef.current._muteNode) {
-              audioContextRef.current._muteNode.disconnect();
-            }
-            
-            if (muted) {
-              // Create a gain node with 0 gain and insert it at destination
-              const muteNode = audioContextRef.current.createGain();
-              muteNode.gain.value = 0;
-              
-              // Store the destination for later
-              audioContextRef.current._originalDestination = audioContextRef.current.destination;
-              
-              // Replace the destination with our mute node
-              Object.defineProperty(audioContextRef.current, 'destination', {
-                value: muteNode,
-                writable: false,
-                configurable: true
-              });
-              
-              // Connect mute node to the real destination
-              muteNode.connect(audioContextRef.current._originalDestination);
-              
-              // Store reference to mute node
-              audioContextRef.current._muteNode = muteNode;
-              
-              console.log(`${voiceType} dashboard audio muted with zero-gain node`);
-            } else {
-              // Restore original destination if we have one saved
-              if (audioContextRef.current._originalDestination) {
-                Object.defineProperty(audioContextRef.current, 'destination', {
-                  value: audioContextRef.current._originalDestination,
-                  writable: false,
-                  configurable: true
-                });
-                
-                delete audioContextRef.current._originalDestination;
-                delete audioContextRef.current._muteNode;
-                
-                console.log(`${voiceType} dashboard audio unmuted`);
-              }
-            }
-          } catch (error) {
-            console.error(`Error setting mute state for ${voiceType}:`, error);
-          }
-        }
-      }
   }));
 
   // Initialize audio context
@@ -310,17 +257,6 @@ const VoiceModule = forwardRef(({
     }
   }, [isPlaying, onPlayStateChange]);
   
-  // Generate a random frequency within the voice range
-  // const generateRandomFrequency = () => {
-  //   return Math.random() * (voiceRange.max - voiceRange.min) + voiceRange.min;
-  // };
-  
-  // Generate a random duration between 3 and 8 seconds
-  // const generateRandomDuration = () => {
-  //   // return Math.random() * 5 + 3; // 3 to 8 seconds
-  //   return 10;
-  // };
-  
   // Generate a note name from a frequency (simplified)
   const getNoteName = (frequency) => {
     // This is a simplified mapping that doesn't account for exact frequencies
@@ -338,48 +274,6 @@ const VoiceModule = forwardRef(({
     return noteNames[noteIndex] + octave;
   };
   
-  // Generate a new note
-  // const generateNewNote = () => {
-  //   const frequency = generateRandomFrequency();
-  //   const duration = generateRandomDuration();
-  //   const note = getNoteName(frequency);
-    
-  //   return {
-  //     frequency,
-  //     duration,
-  //     note
-  //   };
-  // };
-  
-  // Auto-generate and add new notes to the queue
-  // const startAutoGeneration = () => {
-  //   // Clear any existing interval
-  //   if (autoGenIntervalRef.current) {
-  //     clearInterval(autoGenIntervalRef.current);
-  //   }
-    
-  //   // Generate initial note if queue is empty
-  //   if (audioQueueRef.current.length === 0) {
-  //     const initialNote = generateNewNote();
-  //     updateAudioQueue([initialNote]);
-  //   }
-    
-  //   // Start the interval for generating new notes
-  //   autoGenIntervalRef.current = setInterval(() => {
-  //     const newNote = generateNewNote();
-  //     console.log(`${voiceType} auto-generating new note: ${newNote.note}`);
-      
-  //     updateAudioQueue(prevQueue => {
-  //       // Add the new note to the queue
-  //       const updatedQueue = [...prevQueue, newNote];
-        
-  //       return updatedQueue;
-  //     });
-  //   }, 5000);
-
-  //     setAutoGenerate(true);
-  //   };
-    
     // Stop auto generation
     const stopAutoGeneration = () => {
       if (autoGenIntervalRef.current) {
@@ -527,11 +421,12 @@ const VoiceModule = forwardRef(({
 
       // Gain control with detailed logging
       console.log(`[${voiceType}] Starting gain at near-zero`);
+      const maxGain = noteData.max_gain || 0.5; // Get max_gain from noteData or set a default value
       gainNode.gain.setValueAtTime(0.001, ctx.currentTime);
 
       console.log(`[${voiceType}] Fade-in: 0.001 -> 0.5 over ${fadeInDuration} seconds`);
       gainNode.gain.exponentialRampToValueAtTime(
-        0.5, // Mid-point volume 
+        maxGain * gainMultiplier,
         ctx.currentTime + fadeInDuration
       );
 
@@ -539,7 +434,7 @@ const VoiceModule = forwardRef(({
       if (noteDuration > fadeInDuration * 2) {
         console.log(`[${voiceType}] Maintaining volume at 0.5 for sustained period`);
         gainNode.gain.setValueAtTime(
-          0.5, 
+          maxGain * gainMultiplier, 
           ctx.currentTime + noteDuration - fadeOutDuration
         );
       }
