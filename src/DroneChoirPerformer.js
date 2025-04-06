@@ -4,6 +4,7 @@ import VoiceModule from './VoiceModule';
 import { startUnison, startAll, stopAll } from './performance';
 import socketManager from './DroneSocketManager';
 import { VOICE_RANGES, generateRandomNote } from './voiceTypes';
+import { io } from 'socket.io-client';
 
 const DroneChoirPerformer = () => {
   // State for controlling all modules
@@ -15,6 +16,9 @@ const DroneChoirPerformer = () => {
   const [dashboardMuted, setDashboardMuted] = useState(false);
   const [audioInitialized, setAudioInitialized] = useState(false);
   const sharedAudioContextRef = useRef(null);
+  const [lastInputReceived, setLastInputReceived] = useState(null);
+
+  const apiSocket = io('http://localhost:3000'); 
   
   // Create refs to access the voice module methods
   const voiceModuleRefs = {
@@ -109,6 +113,28 @@ const DroneChoirPerformer = () => {
     
     console.log('Range params checked:', rangeParams);
   }, []);
+
+  useEffect(() => {
+    // Connect to the API socket for input notifications
+    apiSocket.on('connect', () => {
+      console.log('Connected to API server for notifications');
+    });
+    
+    apiSocket.on('api-input-received', (data) => {
+      console.log('API input received:', data);
+      setLastInputReceived(new Date());
+      
+      // Auto-clear the notification after 3 seconds
+      setTimeout(() => {
+        setLastInputReceived(null);
+      }, 3000);
+    });
+    
+    return () => {
+      apiSocket.disconnect();
+    };
+  }, []);
+
   
   // Connect to socket server and set up listeners
   useEffect(() => {
@@ -118,6 +144,14 @@ const DroneChoirPerformer = () => {
     // Set up socket event listeners
     socketManager.on('connect', () => {
       setIsConnected(true);
+
+      // Disable auto-generation for all voice modules as soon as connected
+      Object.values(voiceModuleRefs).forEach(ref => {
+        if (ref.current && ref.current.stopAutoGeneration) {
+          console.log("Disabling auto-generation in voice module");
+          ref.current.stopAutoGeneration();
+        }
+      });
     });
     
     socketManager.on('disconnect', () => {
@@ -141,6 +175,16 @@ const DroneChoirPerformer = () => {
     socketManager.on('voice-state', (data) => {
       // Apply state for a specific voice
       applyVoiceState(data.voiceType, data.state);
+    });
+
+    socketManager.on('api-input-received', (data) => {
+      console.log('API input received:', data);
+      setLastInputReceived(new Date());
+      
+      // Auto-clear the notification after 3 seconds
+      setTimeout(() => {
+        setLastInputReceived(null);
+      }, 3000);
     });
     
     // Clean up on unmount
@@ -285,17 +329,15 @@ const broadcastState = () => {
       anyVoicePlaying = true;
     }
     
-    // Always try to include a next note
-    const includeNextNote = nextNote || 
-      (isVoicePlaying && ref.current.autoGenerate ? 
-        generateRandomNote(VOICE_RANGES[voiceType]) : 
-        (queue.length > 0 ? queue[0] : null));
+    // Never use auto-generated notes, only use queued notes
+    const includeNextNote = nextNote || (queue.length > 0 ? queue[0] : null);
     
     voices[voiceType] = {
       isPlaying: isVoicePlaying,
       currentNote: currentNote,
       nextNote: includeNextNote,
-      queue: queue
+      queue: queue,
+      autoGenerate: false  // Always set to false
     };
     
     console.log(`${voiceType} state for broadcast:`, 
@@ -483,6 +525,14 @@ const broadcastState = () => {
   // Regular full view with all voice modules
   return (
     <div className="drone-choir-multi">
+      {lastInputReceived && (
+        <div className="input-notification">
+          <div className="notification-content">
+            <span className="notification-icon">📡</span>
+            <span className="notification-text">External input received at {lastInputReceived.toLocaleTimeString()}</span>
+          </div>
+        </div>
+      )}
       {/* Master controls */}
       <div className="master-controls">
         <button 

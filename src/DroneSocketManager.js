@@ -108,15 +108,18 @@ class DroneSocketManager {
 
   // Get current state
 getCurrentState() {
-  return this._currentState || {
-    isPlaying: false,
-    voices: {
-      soprano: { isPlaying: false, currentNote: null, nextNote: null },
-      alto: { isPlaying: false, currentNote: null, nextNote: null },
-      tenor: { isPlaying: false, currentNote: null, nextNote: null },
-      bass: { isPlaying: false, currentNote: null, nextNote: null }
-    }
-  };
+  if (!this._currentState) {
+    this._currentState = {
+      isPlaying: false,
+      voices: {
+        soprano: { isPlaying: false, currentNote: null, nextNote: null, queue: [] },
+        alto: { isPlaying: false, currentNote: null, nextNote: null, queue: [] },
+        tenor: { isPlaying: false, currentNote: null, nextNote: null, queue: [] },
+        bass: { isPlaying: false, currentNote: null, nextNote: null, queue: [] }
+      }
+    };
+  }
+  return this._currentState;
 }
 
 // Store current state

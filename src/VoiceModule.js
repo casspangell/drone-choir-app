@@ -352,33 +352,33 @@ const VoiceModule = forwardRef(({
   };
   
   // Auto-generate and add new notes to the queue
-  const startAutoGeneration = () => {
-    // Clear any existing interval
-    if (autoGenIntervalRef.current) {
-      clearInterval(autoGenIntervalRef.current);
-    }
+  // const startAutoGeneration = () => {
+  //   // Clear any existing interval
+  //   if (autoGenIntervalRef.current) {
+  //     clearInterval(autoGenIntervalRef.current);
+  //   }
     
-    // Generate initial note if queue is empty
-    if (audioQueueRef.current.length === 0) {
-      const initialNote = generateNewNote();
-      updateAudioQueue([initialNote]);
-    }
+  //   // Generate initial note if queue is empty
+  //   if (audioQueueRef.current.length === 0) {
+  //     const initialNote = generateNewNote();
+  //     updateAudioQueue([initialNote]);
+  //   }
     
-    // Start the interval for generating new notes
-    autoGenIntervalRef.current = setInterval(() => {
-      const newNote = generateNewNote();
-      console.log(`${voiceType} auto-generating new note: ${newNote.note}`);
+  //   // Start the interval for generating new notes
+  //   autoGenIntervalRef.current = setInterval(() => {
+  //     const newNote = generateNewNote();
+  //     console.log(`${voiceType} auto-generating new note: ${newNote.note}`);
       
-      updateAudioQueue(prevQueue => {
-        // Add the new note to the queue
-        const updatedQueue = [...prevQueue, newNote];
+  //     updateAudioQueue(prevQueue => {
+  //       // Add the new note to the queue
+  //       const updatedQueue = [...prevQueue, newNote];
         
-        return updatedQueue;
-      });
-    }, 5000);
+  //       return updatedQueue;
+  //     });
+  //   }, 5000);
 
-      setAutoGenerate(true);
-    };
+  //     setAutoGenerate(true);
+  //   };
     
     // Stop auto generation
     const stopAutoGeneration = () => {
@@ -417,48 +417,48 @@ const VoiceModule = forwardRef(({
   const playNextInQueue = () => {
     console.log(`${voiceType} playNextInQueue called, queue length: ${audioQueueRef.current.length}`);
     
-    if (audioQueueRef.current.length === 0) {
-      console.log(`${voiceType} queue is empty, checking auto-generate`);
+    // if (audioQueueRef.current.length === 0) {
+    //   console.log(`${voiceType} queue is empty, checking auto-generate`);
       
-      // Only auto-generate in non-viewer modes
-      if (autoGenerate && isPlayingRef.current && !isViewerMode && !isSingleMode) {
-        console.log(`${voiceType} auto-generate is on, generating a new note`);
-        const newNote = generateRandomNote(voiceRange);
+    //   // Only auto-generate in non-viewer modes
+    //   if (autoGenerate && isPlayingRef.current && !isViewerMode && !isSingleMode) {
+    //     console.log(`${voiceType} auto-generate is on, generating a new note`);
+    //     // const newNote = generateRandomNote(voiceRange);//kilroy
         
-        updateAudioQueue([newNote]);
+    //     // updateAudioQueue([newNote]);
         
-        // Immediately play the new note if nothing is currently playing
-        setTimeout(() => {
-          if (isPlayingRef.current && !oscillatorRef.current) {
-            console.log(`${voiceType} playing newly generated note`);
-            playNextInQueue();
-          }
-        }, 50);
-      } else {
-        console.log(`${voiceType} no more notes and auto-generate is off or in viewer mode`);
-        setCurrentNote(null);
-        setNextNote(null);
-      }
-      return;
-    }
+    //     // Immediately play the new note if nothing is currently playing
+    //     setTimeout(() => {
+    //       if (isPlayingRef.current && !oscillatorRef.current) {
+    //         console.log(`${voiceType} playing newly generated note`);
+    //         playNextInQueue();
+    //       }
+    //     }, 50);
+    //   } else {
+    //     console.log(`${voiceType} no more notes and auto-generate is off or in viewer mode`);
+    //     setCurrentNote(null);
+    //     setNextNote(null);
+    //   }
+    //   return;
+    // }
     
     // Get the next note from the queue
-    const nextNoteToPlay = audioQueueRef.current[0];
-    console.log(`${voiceType} selected note to play: ${nextNoteToPlay.note}`);
+    // const nextNoteToPlay = audioQueueRef.current[0];
+    // console.log(`${voiceType} selected note to play: ${nextNoteToPlay.note}`);
     
-    // Remove the first item from the queue
-    const newQueue = audioQueueRef.current.slice(1);
-    updateAudioQueue(newQueue);
+    // // Remove the first item from the queue
+    // const newQueue = audioQueueRef.current.slice(1);
+    // updateAudioQueue(newQueue);
     
-    // Set current and next note for display
-    setCurrentNote(nextNoteToPlay);
-    setNextNote(newQueue.length > 0 ? newQueue[0] : null);
+    // // Set current and next note for display
+    // setCurrentNote(nextNoteToPlay);
+    // setNextNote(newQueue.length > 0 ? newQueue[0] : null);
     
-    // Start countdown
-    startCountdown(nextNoteToPlay.duration);
+    // // Start countdown
+    // startCountdown(nextNoteToPlay.duration);
     
-    // Play the note
-    playNote(nextNoteToPlay);
+    // // Play the note
+    // playNote(nextNoteToPlay);
   };
 
   const updateAudioQueue = (newQueue) => {
@@ -617,10 +617,10 @@ const adjustVolumeForSolo = (soloVolume) => {
     isPlayingRef.current = true;
     
     // Generate a note if queue is empty
-    if (audioQueueRef.current.length === 0) {
-      const initialNote = generateRandomNote(voiceRange);
-      updateAudioQueue([initialNote]);
-    }
+    // if (audioQueueRef.current.length === 0) {
+      // const initialNote = generateRandomNote(voiceRange);//kilroy
+      // updateAudioQueue([initialNote]);
+    // }
     
     // Play next in queue
     setTimeout(() => {
@@ -630,9 +630,9 @@ const adjustVolumeForSolo = (soloVolume) => {
     }, 50);
     
     // Start auto-generation if it's not already on and allowed
-    if (shouldAutoGenerate && !autoGenerate) {
-      startAutoGeneration();
-    }
+    // if (shouldAutoGenerate && !autoGenerate) {
+    //   startAutoGeneration();
+    // }
   };
   
   // Handle countdown timer
@@ -816,28 +816,28 @@ const adjustVolumeForSolo = (soloVolume) => {
   
   // Handle auto-generate toggle
   const handleAutoGenerateToggle = () => {
-    if (autoGenerate) {
-      stopAutoGeneration();
-    } else {
-      startAutoGeneration();
-    }
+    // if (autoGenerate) {
+    //   stopAutoGeneration();
+    // } else {
+    //   startAutoGeneration();
+    // }
   };
   
   // Add a single note to the queue
   const addNoteToQueue = () => {
-    const newNote = generateRandomNote(voiceRange);
-    updateAudioQueue(prevQueue => {
-      const updatedQueue = [...prevQueue, newNote];
+    // const newNote = generateRandomNote(voiceRange);//kilroy
+    // updateAudioQueue(prevQueue => {
+    //   const updatedQueue = [...prevQueue, newNote];
       
-      // If nothing is playing, start playing the new note
-      if (isPlayingRef.current && !oscillatorRef.current) {
-        setTimeout(() => {
-          playNextInQueue();
-        }, 50);
-      }
+    //   // If nothing is playing, start playing the new note
+    //   if (isPlayingRef.current && !oscillatorRef.current) {
+    //     setTimeout(() => {
+    //       playNextInQueue();
+    //     }, 50);
+    //   }
       
-      return updatedQueue;
-    });
+    //   return updatedQueue;
+    // });
   };
   
   // Render pitch indicator (visual aid for performers)
@@ -912,35 +912,6 @@ return (
       </div>
     </div>
   )}
-
-    <h2 className="voice-title">{rangeLabel} VOICE</h2>
-    
-    {/* Performer controls */}
-    {!isSingleMode && (
-      <div className="control-panel">
-        <div className="auto-generate">
-          <label>
-            <input 
-              type="checkbox" 
-              checked={autoGenerate} 
-              onChange={handleAutoGenerateToggle}
-              disabled={isViewerMode}
-            />
-            Auto-generate notes every 5 seconds
-          </label>
-        </div>
-        
-        <div className="queue-controls">
-          <button 
-            className="queue-button add" 
-            onClick={addNoteToQueue}
-            disabled={isViewerMode}
-          >
-            Add Random Note
-          </button>
-        </div>
-      </div>
-    )}
     
     {/* Current note display */}
    <div className="note-display-row">
