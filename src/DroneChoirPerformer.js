@@ -85,6 +85,7 @@ const DroneChoirPerformer = () => {
   }, [viewMode, isAllPlaying, soloVoice]);
 
   const addNoteToVoiceModule = useCallback((voiceType, note) => {
+    console.log(`Adding note ${note} to ${voiceType} module`);
     const voiceRef = voiceModuleRefs[voiceType]?.current;
     
     if (!voiceRef) {

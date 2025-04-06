@@ -311,15 +311,15 @@ const VoiceModule = forwardRef(({
   }, [isPlaying, onPlayStateChange]);
   
   // Generate a random frequency within the voice range
-  const generateRandomFrequency = () => {
-    return Math.random() * (voiceRange.max - voiceRange.min) + voiceRange.min;
-  };
+  // const generateRandomFrequency = () => {
+  //   return Math.random() * (voiceRange.max - voiceRange.min) + voiceRange.min;
+  // };
   
   // Generate a random duration between 3 and 8 seconds
-  const generateRandomDuration = () => {
-    // return Math.random() * 5 + 3; // 3 to 8 seconds
-    return 10;
-  };
+  // const generateRandomDuration = () => {
+  //   // return Math.random() * 5 + 3; // 3 to 8 seconds
+  //   return 10;
+  // };
   
   // Generate a note name from a frequency (simplified)
   const getNoteName = (frequency) => {
@@ -339,17 +339,17 @@ const VoiceModule = forwardRef(({
   };
   
   // Generate a new note
-  const generateNewNote = () => {
-    const frequency = generateRandomFrequency();
-    const duration = generateRandomDuration();
-    const note = getNoteName(frequency);
+  // const generateNewNote = () => {
+  //   const frequency = generateRandomFrequency();
+  //   const duration = generateRandomDuration();
+  //   const note = getNoteName(frequency);
     
-    return {
-      frequency,
-      duration,
-      note
-    };
-  };
+  //   return {
+  //     frequency,
+  //     duration,
+  //     note
+  //   };
+  // };
   
   // Auto-generate and add new notes to the queue
   // const startAutoGeneration = () => {
