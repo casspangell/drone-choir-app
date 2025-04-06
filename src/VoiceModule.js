@@ -461,37 +461,37 @@ const VoiceModule = forwardRef(({
     console.log(`${voiceType} queue updated:`, updatedQueue);
   };
   
-    // Modify playNote to use the consistent audio context
+  // Modify playNote to use the consistent audio context
   const playNote = (noteData) => {
     const ctx = audioContextRef.current;
     const gainMultiplier = (isSoloMode && !isCurrentSolo) ? 0 : 1;
 
     if (!ctx) {
-        console.error(`No audio context available for ${voiceType}`);
-        return;
+      console.error(`No audio context available for ${voiceType}`);
+      return;
     }
     
     // Stop any currently playing note completely
     if (oscillatorRef.current) {
-        try {
-            oscillatorRef.current.stop();
-            oscillatorRef.current.disconnect();
-            
-            if (gainNodeRef.current) {
-                gainNodeRef.current.disconnect();
-            }
-            
-            // Cancel any existing animation frame
-            if (animationFrameRef.current) {
-                cancelAnimationFrame(animationFrameRef.current);
-                animationFrameRef.current = null;
-            }
-            
-            oscillatorRef.current = null;
-            gainNodeRef.current = null;
-        } catch (e) {
-            console.log(`Error stopping previous oscillator in ${voiceType}:`, e);
+      try {
+        oscillatorRef.current.stop();
+        oscillatorRef.current.disconnect();
+        
+        if (gainNodeRef.current) {
+          gainNodeRef.current.disconnect();
         }
+        
+        // Cancel any existing animation frame
+        if (animationFrameRef.current) {
+          cancelAnimationFrame(animationFrameRef.current);
+          animationFrameRef.current = null;
+        }
+        
+        oscillatorRef.current = null;
+        gainNodeRef.current = null;
+      } catch (e) {
+        console.log(`Error stopping previous oscillator in ${voiceType}:`, e);
+      }
     }
     
     // Create new audio nodes using the consistent context
@@ -509,10 +509,46 @@ const VoiceModule = forwardRef(({
       oscillator.type = 'sine';
       oscillator.frequency.setValueAtTime(noteData.frequency, ctx.currentTime);
       
-      // Precise gain control
-      gainNode.gain.setValueAtTime(0, ctx.currentTime);
-      gainNode.gain.linearRampToValueAtTime(0.5, ctx.currentTime + 0.5);
-      gainNode.gain.linearRampToValueAtTime(0, ctx.currentTime + noteData.duration);
+      // Implement 5-second fade in and out
+      const noteDuration = noteData.duration;
+      const fadeDuration = 5; // 5-second fade
+      
+      // Calculate actual fade durations
+      const fadeInDuration = Math.min(fadeDuration, noteDuration / 2);
+      const fadeOutDuration = Math.min(fadeDuration, noteDuration / 2);
+      
+      console.log(`[${voiceType}] Note Details:`, {
+        note: noteData.note,
+        frequency: noteData.frequency,
+        totalDuration: noteDuration,
+        fadeInDuration,
+        fadeOutDuration
+      });
+
+      // Gain control with detailed logging
+      console.log(`[${voiceType}] Starting gain at near-zero`);
+      gainNode.gain.setValueAtTime(0.001, ctx.currentTime);
+
+      console.log(`[${voiceType}] Fade-in: 0.001 -> 0.5 over ${fadeInDuration} seconds`);
+      gainNode.gain.exponentialRampToValueAtTime(
+        0.5, // Mid-point volume 
+        ctx.currentTime + fadeInDuration
+      );
+
+      // Maintain volume if note is longer than fade-in + fade-out
+      if (noteDuration > fadeInDuration * 2) {
+        console.log(`[${voiceType}] Maintaining volume at 0.5 for sustained period`);
+        gainNode.gain.setValueAtTime(
+          0.5, 
+          ctx.currentTime + noteDuration - fadeOutDuration
+        );
+      }
+
+      console.log(`[${voiceType}] Fade-out: 0.5 -> 0.001 over ${fadeOutDuration} seconds`);
+      gainNode.gain.exponentialRampToValueAtTime(
+        0.001, // Near zero, not completely zero to avoid click
+        ctx.currentTime + noteDuration
+      );
       
       // Connect nodes with analyser
       oscillator.connect(gainNode);
@@ -528,7 +564,7 @@ const VoiceModule = forwardRef(({
       
       // Start and schedule stop
       oscillator.start();
-      oscillator.stop(ctx.currentTime + noteData.duration);
+      oscillator.stop(ctx.currentTime + noteDuration);
       
       console.log(`${voiceType} playing note: ${noteData.note} (${noteData.frequency.toFixed(2)} Hz)`);
       
@@ -558,7 +594,7 @@ const VoiceModule = forwardRef(({
     } catch (e) {
       console.error(`Error playing note in ${voiceType}:`, e);
     }
-};
+  };
 
 const adjustVolumeForSolo = (soloVolume) => {
   if (gainNodeRef.current) {
