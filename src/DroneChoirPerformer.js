@@ -340,11 +340,11 @@ const broadcastState = () => {
       autoGenerate: false  // Always set to false
     };
     
-    console.log(`${voiceType} state for broadcast:`, 
-                isVoicePlaying ? 'playing' : 'stopped', 
-                currentNote?.note, 
-                `nextNote: ${includeNextNote?.note || 'none'}`,
-                `queue length: ${queue.length}`);
+    // console.log(`${voiceType} state for broadcast:`, 
+    //             isVoicePlaying ? 'playing' : 'stopped', 
+    //             currentNote?.note, 
+    //             `nextNote: ${includeNextNote?.note || 'none'}`,
+    //             `queue length: ${queue.length}`);
   });
   
   // Update global playing state if it doesn't match
@@ -360,8 +360,8 @@ const broadcastState = () => {
     timestamp: Date.now()
   };
   
-  console.log("Broadcasting state:", state.isPlaying ? 'playing' : 'stopped', 
-              Object.keys(voices).map(v => `${v}: ${voices[v].isPlaying ? 'playing' : 'stopped'}`).join(', '));
+  // console.log("Broadcasting state:", state.isPlaying ? 'playing' : 'stopped', 
+  //             Object.keys(voices).map(v => `${v}: ${voices[v].isPlaying ? 'playing' : 'stopped'}`).join(', '));
   
   // Send to server
   socketManager.updateState(state);
