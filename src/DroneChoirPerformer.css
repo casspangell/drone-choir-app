@@ -10,6 +10,17 @@
   align-items: center;
 }
 
+.drone-choir-single h1 {
+  display: block !important;
+  color: lime !important;
+  background-color: black !important;
+  padding: 20px !important;
+  text-align: center !important;
+  font-size: 2rem !important;
+  margin-bottom: 20px !important;
+  z-index: 1000 !important;
+}
+
 .voice-modules-grid {
   display: flex;
   flex-wrap: nowrap;
@@ -29,6 +40,18 @@
   margin-bottom: 10px;
   font-size: 1.5rem;
   color: white;
+}
+
+@media (max-width: 767px) {
+  .voice-module-container h1 {
+    display: block; /* Ensure the title is visible */
+    text-align: center;
+    margin-bottom: 10px;
+    font-size: 1.2rem; /* Slightly smaller on mobile */
+    color: white;
+    padding: 10px;
+    background-color: rgba(0, 0, 0, 0.1); /* Optional: add a subtle background */
+  }
 }
 
 h1.page-title {

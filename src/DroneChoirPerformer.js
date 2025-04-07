@@ -612,6 +612,13 @@ const DroneChoirPerformer = () => {
     const voiceType = singleVoiceMode;
     const range = VOICE_RANGES[voiceType];
     const rangeLabel = getRangeLabel(voiceType);
+
+    console.log('Single Voice Mode:', {
+      voiceType,
+      range,
+      rangeLabel,
+      singleVoiceMode
+    });
     
     return (
       <div className="drone-choir-single">
