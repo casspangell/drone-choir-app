@@ -247,11 +247,12 @@ const VoiceModule = forwardRef(({
     return voiceType === targetVoice;
   };
   
-  // NEW: Play the next audio file in the queue
+  // Play the next audio file in the queue
   const playNextAudioFile = () => {
     if (audioFileQueueRef.current.length === 0) {
       setIsAudioFilePlaying(false);
       setCurrentAudioFile(null);
+      audioElementRef.current = null;
       return;
     }
     
@@ -263,39 +264,66 @@ const VoiceModule = forwardRef(({
     
     console.log(`${voiceType} playing audio file:`, audioFile);
     
-    // Create audio element if it doesn't exist
-    if (!audioElementRef.current) {
-      audioElementRef.current = new Audio();
+    // Create a new audio element for each playback to avoid conflicts
+    const audioElement = new Audio();
+    
+    // Set up event handlers
+    audioElement.onended = () => {
+      console.log(`${voiceType} audio file playback ended`);
+      audioElementRef.current = null;
+      setIsAudioFilePlaying(false);
       
-      // Set up event handlers
-      audioElementRef.current.onended = () => {
-        console.log(`${voiceType} audio file playback ended`);
+      // Use setTimeout to prevent state update conflicts
+      setTimeout(() => {
         playNextAudioFile();
-      };
+      }, 50);
+    };
+    
+    audioElement.onerror = (e) => {
+      console.error(`${voiceType} error playing audio file:`, e);
+      console.error('Error details:', audioElement.error);
+      audioElementRef.current = null;
+      setIsAudioFilePlaying(false);
       
-      audioElementRef.current.onerror = (e) => {
-        console.error(`${voiceType} error playing audio file:`, e);
-        console.error('Error details:', audioElementRef.current.error);
+      // Use setTimeout to prevent state update conflicts
+      setTimeout(() => {
         playNextAudioFile();
-      };
-    }
+      }, 50);
+    };
     
     // Set up volume
     const volume = audioFile.metadata?.playback_volume ? 
       parseFloat(audioFile.metadata.playback_volume) : 0.7;
-    audioElementRef.current.volume = isNaN(volume) ? 0.7 : volume;
+    audioElement.volume = isNaN(volume) ? 0.7 : volume;
+    
+    // Add metadata to audio element for access by the progress indicator
+    audioElement.metaData = audioFile.metadata;
+    
+    // Store reference to current audio element
+    audioElementRef.current = audioElement;
     
     // Set source and play
-    audioElementRef.current.src = audioFile.url;
-    audioElementRef.current.load();
-    audioElementRef.current.play()
-      .then(() => {
-        console.log(`${voiceType} audio file playback started`);
-      })
-      .catch(err => {
-        console.error(`${voiceType} failed to play audio file:`, err);
-        playNextAudioFile();
-      });
+    audioElement.src = audioFile.url;
+    
+    // Add a small delay before playing to ensure the audio loads properly
+    setTimeout(() => {
+      if (audioElementRef.current === audioElement) {
+        audioElement.play()
+          .then(() => {
+            console.log(`${voiceType} audio file playback started`);
+          })
+          .catch(err => {
+            console.error(`${voiceType} failed to play audio file:`, err);
+            audioElementRef.current = null;
+            setIsAudioFilePlaying(false);
+            
+            // Use setTimeout to prevent state update conflicts
+            setTimeout(() => {
+              playNextAudioFile();
+            }, 50);
+          });
+      }
+    }, 100);
   };
   
   // Expose methods to parent component via ref
@@ -377,9 +405,6 @@ const VoiceModule = forwardRef(({
     },
     adjustVolume: (soloVolume) => {
       adjustVolumeForSolo(soloVolume);
-    },
-    get isSolo() {
-      return isSolo;
     },
     get isSelected() {
       return isSelected;
@@ -929,7 +954,7 @@ const adjustVolumeForSolo = (soloVolume) => {
     return () => {
       window.removeEventListener('resize', handleResize);
       // Clean up audio resources
-      if (oscillatorRef.current && audioContext) {
+      if (oscillatorRef.current && audioContextRef.current) {
         try {
           oscillatorRef.current.stop();
         } catch (e) {
@@ -943,7 +968,7 @@ const adjustVolumeForSolo = (soloVolume) => {
         clearInterval(autoGenIntervalRef.current);
       }
     };
-  }, [audioContext]);
+  }, [audioContextRef, canvasRef, oscillatorRef, animationFrameRef, autoGenIntervalRef]);
   
   // Handle auto-generate toggle
   const handleAutoGenerateToggle = () => {
@@ -1036,6 +1061,87 @@ const adjustVolumeForSolo = (soloVolume) => {
     );
   };
 
+  // Playback indicator component
+  const AudioPlaybackIndicator = ({ currentAudio, isPlaying, audioElementRef }) => {
+    const [progress, setProgress] = useState(0);
+    const [duration, setDuration] = useState(0);
+    
+    // Update progress periodically while audio is playing
+    useEffect(() => {
+      if (!isPlaying || !audioElementRef.current) return;
+      
+      // Get initial duration when loaded
+      const handleDurationChange = () => {
+        setDuration(audioElementRef.current.duration);
+      };
+      
+      // Update progress as audio plays
+      const updateProgress = () => {
+        if (audioElementRef.current) {
+          const currentTime = audioElementRef.current.currentTime;
+          const audioDuration = audioElementRef.current.duration;
+          
+          if (audioDuration) {
+            // Calculate progress percentage
+            setProgress((currentTime / audioDuration) * 100);
+          }
+        }
+      };
+      
+      // Set up event listeners
+      const audioElement = audioElementRef.current;
+      audioElement.addEventListener('durationchange', handleDurationChange);
+      
+      // Update progress every 100ms
+      const progressInterval = setInterval(updateProgress, 100);
+      
+      // Clean up
+      return () => {
+        clearInterval(progressInterval);
+        if (audioElement) {
+          audioElement.removeEventListener('durationchange', handleDurationChange);
+        }
+      };
+    }, [isPlaying, audioElementRef]);
+    
+    if (!currentAudio || !isPlaying) return null;
+    
+    const metadata = currentAudio.metadata || {};
+    const title = metadata.title || 'Audio File';
+    const description = metadata.description || '';
+    
+    // Format time as mm:ss
+    const formatTime = (seconds) => {
+      if (!seconds || isNaN(seconds)) return '00:00';
+      const mins = Math.floor(seconds / 60);
+      const secs = Math.floor(seconds % 60);
+      return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+    };
+    
+    // Calculate current time based on progress
+    const currentTime = (progress / 100) * duration;
+    
+    return (
+      <div className="audio-playback-indicator">
+        <div className="audio-indicator-icon">
+          <div className="audio-wave">
+            <span></span><span></span><span></span><span></span>
+          </div>
+        </div>
+        <div className="audio-info">
+          <div className="audio-progress-container">
+            <div className="audio-progress-bar">
+              <div 
+                className="audio-progress-fill" 
+                style={{ width: `${progress}%` }}
+              ></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   // Helper function to get range label
   const getRangeLabel = (voiceType) => {
     return Object.entries(voiceRangeMapping).find(
@@ -1045,98 +1151,107 @@ const adjustVolumeForSolo = (soloVolume) => {
 
   const rangeLabel = getRangeLabel(voiceType);
   
-return (
-  <div className={`drone-choir-container ${isSelected ? 'selected' : ''} ${isSingleMode ? 'single-mode' : ''}`} >
-      
-  {isSingleMode && (
-    <div className="enable-audio-container">
-      <button 
-        className="enable-audio-button"
-        onClick={resumeAudioContext}
-      >
-        ENABLE AUDIO
-      </button>
-      <div className="enable-instruction">
-        Click the button above to enable audio for this voice
-      </div>
-    </div>
-  )}
-    
-    {/* Current note display */}
-   <div className="note-display-row">
-      {/* Current note display */}
-      <div className="note-display current-note">
-        <h2 className="section-title">Current Note</h2>
+  return (
+    <>
+      <div className={`drone-choir-container ${isSelected ? 'selected' : ''} ${isSingleMode ? 'single-mode' : ''}`} >
         
-        {currentNote ? (
-          <div className="note-info">
-            <div className="note-details">
-              <div className={`note-name ${isSingleMode ? 'large-note' : ''}`}>{currentNote.note}</div>
-              <div className="note-frequency">{currentNote.frequency.toFixed(2)} Hz</div>
-            </div>
-            
-            <div className="countdown">
-              <div className="countdown-time">
-                {countdownTime}s
-              </div>
-              <div className="countdown-label">until next note</div>
+        {isSingleMode && (
+          <div className="enable-audio-container">
+            <button 
+              className="enable-audio-button"
+              onClick={resumeAudioContext}
+            >
+              ENABLE AUDIO
+            </button>
+            <div className="enable-instruction">
+              Click the button above to enable audio for this voice
             </div>
           </div>
-        ) : (
-          <div className="no-note">No note playing</div>
         )}
-      </div>
-      
-      {/* Next note preview */}
-      {nextNote && (
-        <div className="note-display next-note">
-          <h2 className="section-title">Coming Next</h2>
-          <div className="note-info">
-            <div className="note-details">
-              <div className="note-name next">{nextNote.note}</div>
-              <div className="note-frequency">{nextNote.frequency.toFixed(2)} Hz</div>
+          
+        {/* Current note display */}
+        <div className="note-display-row">
+          {/* Current note display */}
+          <div className="note-display current-note">
+            <h2 className="section-title">Current Note</h2>
+            
+            {currentNote ? (
+              <div className="note-info">
+                <div className="note-details">
+                  <div className={`note-name ${isSingleMode ? 'large-note' : ''}`}>{currentNote.note}</div>
+                  <div className="note-frequency">{currentNote.frequency.toFixed(2)} Hz</div>
+                </div>
+                
+                <div className="countdown">
+                  <div className="countdown-time">
+                    {countdownTime}s
+                  </div>
+                  <div className="countdown-label">until next note</div>
+                </div>
+              </div>
+            ) : (
+              <div className="no-note">No note playing</div>
+            )}
+          </div>
+          
+          {/* Next note preview */}
+          {nextNote && (
+            <div className="note-display next-note">
+              <h2 className="section-title">Coming Next</h2>
+              <div className="note-info">
+                <div className="note-details">
+                  <div className="note-name next">{nextNote.note}</div>
+                  <div className="note-frequency">{nextNote.frequency.toFixed(2)} Hz</div>
+                </div>
+              </div>
             </div>
+          )}
+        </div>
+
+        {/* Audio File Status - NEW */}
+        {isAudioFilePlaying && renderAudioFileStatus()}
+        
+        {/* Queue display - conditionally show less detail in single mode */}
+        <div className="queue-display">
+          <h2 className="section-title">Note Queue ({audioQueue.length})</h2>
+          <div className="queue-items">
+            {audioQueue.length === 0 ? (
+              <div className="empty-queue">Queue is empty</div>
+            ) : (
+              audioQueue.slice(0, isSingleMode ? 3 : 5).map((queueItem, index) => (
+                <div key={index} className="queue-item">
+                  <span className="queue-note">{queueItem.note}</span>
+                  <span className="queue-freq">{queueItem.frequency.toFixed(1)} Hz</span>
+                  <span className="queue-duration">{queueItem.duration.toFixed(1)}s</span>
+                </div>
+              ))
+            )}
+            {audioQueue.length > (isSingleMode ? 3 : 5) && (
+              <div className="queue-more">
+                +{audioQueue.length - (isSingleMode ? 3 : 5)} more notes in queue
+              </div>
+            )}
           </div>
         </div>
-      )}
-    </div>
-
-    {/* Audio File Status - NEW */}
-    {isAudioFilePlaying && renderAudioFileStatus()}
-    
-    {/* Queue display - conditionally show less detail in single mode */}
-    <div className="queue-display">
-      <h2 className="section-title">Note Queue ({audioQueue.length})</h2>
-      <div className="queue-items">
-        {audioQueue.length === 0 ? (
-          <div className="empty-queue">Queue is empty</div>
-        ) : (
-          audioQueue.slice(0, isSingleMode ? 3 : 5).map((queueItem, index) => (
-            <div key={index} className="queue-item">
-              <span className="queue-note">{queueItem.note}</span>
-              <span className="queue-freq">{queueItem.frequency.toFixed(1)} Hz</span>
-              <span className="queue-duration">{queueItem.duration.toFixed(1)}s</span>
-            </div>
-          ))
-        )}
-        {audioQueue.length > (isSingleMode ? 3 : 5) && (
-          <div className="queue-more">
-            +{audioQueue.length - (isSingleMode ? 3 : 5)} more notes in queue
+        
+        {/* Visualization area - enhanced for single mode */}
+        <div className={`visualization-container ${isSingleMode ? 'enhanced-visualization' : ''}`}>
+          <div className="waveform-container">
+            <canvas ref={canvasRef} className="waveform-canvas" />
           </div>
+          {renderPitchIndicator()}
+          {renderGainMeter()}
+        </div>
+        {isAudioFilePlaying && (
+          <AudioPlaybackIndicator 
+            currentAudio={currentAudioFile} 
+            isPlaying={isAudioFilePlaying}
+            audioElementRef={audioElementRef}
+          />
         )}
       </div>
-    </div>
-    
-    {/* Visualization area - enhanced for single mode */}
-    <div className={`visualization-container ${isSingleMode ? 'enhanced-visualization' : ''}`}>
-      <div className="waveform-container">
-        <canvas ref={canvasRef} className="waveform-canvas" />
-      </div>
-      {renderPitchIndicator()}
-      {renderGainMeter()}
-    </div>
-  </div>
-);
+    </>
+  );
 });
 
 export default VoiceModule;
