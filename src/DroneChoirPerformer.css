@@ -78,6 +78,13 @@ h1.page-title {
   }
 }
 
+@keyframes fadeInOut {
+  0% { opacity: 0; }
+  10% { opacity: 1; }
+  90% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
 .drone-choir-container {
   font-family: Arial, sans-serif;
   flex: 1;
@@ -430,6 +437,13 @@ h1.page-title {
   min-height: 100vh;
   display: flex;
   flex-direction: column;
+}
+
+@media (max-width: 768px) {
+  .drone-choir-single {
+    padding: 10px;
+    padding-bottom: 50px;
+  }
 }
 
 .single-voice-header {

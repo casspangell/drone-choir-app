@@ -1164,7 +1164,7 @@ const adjustVolumeForSolo = (soloVolume) => {
               ENABLE AUDIO
             </button>
             <div className="enable-instruction">
-              Click the button above to enable audio for this voice
+              Click the button above to enable audio
             </div>
           </div>
         )}

@@ -2,6 +2,11 @@ import io from 'socket.io-client';
 
 class AudioPlayer {
   constructor(apiUrl = 'http://localhost:3000') {
+    
+    if (apiUrl === 'http://localhost:3000' && window.location.hostname !== 'localhost') {
+      apiUrl = `http://${window.location.hostname}:3000`;
+    }
+
     // Configure Socket.io with explicit CORS settings
     this.socket = io(apiUrl, {
       withCredentials: true,

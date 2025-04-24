@@ -355,41 +355,114 @@ const DroneChoirPerformer = () => {
     };
   }, [viewMode]);
 
-  const handleAudioMessage = (data) => {
+const handleAudioMessage = (data) => {
+  try {
+    // Detailed logging
+    console.log('Audio Message Received:', data);
+    
     // Check if this is the right target for this audio
-    // If we're in single voice mode, check if this audio is for us
     if (singleVoiceMode) {
-      // If a target is specified and it's not us, ignore
       if (data.targetVoice && data.targetVoice !== singleVoiceMode && data.targetVoice !== 'all') {
         console.log(`Ignoring audio for ${data.targetVoice} (we are ${singleVoiceMode})`);
         return;
       }
     }
     
-    // Extract volume from metadata if available
-    let volume = 0.7; // default volume
-    if (data.metadata && data.metadata.playback_volume) {
-      volume = parseFloat(data.metadata.playback_volume);
-      if (isNaN(volume) || volume < 0 || volume > 1) {
-        volume = 0.7; // reset to default if invalid
-      }
+    // Extract volume and URL
+    let volume = data.metadata?.playback_volume ? 
+      parseFloat(data.metadata.playback_volume) : 0.7;
+    
+    // Ensure volume is valid
+    volume = (isNaN(volume) || volume < 0 || volume > 1) ? 0.7 : volume;
+    
+    const audioUrl = data.audioFile?.url;
+    
+    if (!audioUrl) {
+      console.error('No audio URL provided');
+      return;
+    }
+
+    if (audioUrl.includes(':3000') && window.location.port === '8080') {
+      // Preserve the host from the URL but update the port to match the API server
+      console.log('Original URL (port 3000):', audioUrl);
+      // Keep the URL as is - we want to access the API server on port 3000
     }
     
-    // If we have a valid audio player and URL, play the audio
-    if (audioPlayerRef.current && data.audioFile && data.audioFile.url) {
-      // Set volume
-      audioPlayerRef.current.setVolume(volume);
-      
-      // Add the audio to the player's queue
-      // The audioPlayer will handle playing
-      setIsAudioPlaying(true);
-      
-      // Listen for playback end
-      document.addEventListener('haiku-playback-started', () => {
+    console.log('Final audio URL to fetch:', audioUrl);
+    
+    // Create Web Audio Context
+    const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    
+    // Fetch the audio file
+    fetch(audioUrl)
+      .then(response => {
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        return response.arrayBuffer();
+      })
+      .then(arrayBuffer => audioContext.decodeAudioData(arrayBuffer))
+      .then(audioBuffer => {
+        // Create source node
+        const sourceNode = audioContext.createBufferSource();
+        sourceNode.buffer = audioBuffer;
+        
+        // Create gain node for volume control
+        const gainNode = audioContext.createGain();
+        gainNode.gain.setValueAtTime(volume, audioContext.currentTime);
+        
+        // Connect nodes
+        sourceNode.connect(gainNode);
+        gainNode.connect(audioContext.destination);
+        
+        // Play the sound
+        sourceNode.start(0);
+        
+        // Update state
         setIsAudioPlaying(true);
-      }, { once: true });
-    }
-  };
+        
+        // Handle playback end
+        sourceNode.onended = () => {
+          console.log('Audio playback finished');
+          setIsAudioPlaying(false);
+        };
+        
+        console.log('Audio playback started successfully');
+      })
+      .catch(error => {
+        console.error('Error processing audio:', error);
+        console.error('Error type:', error.name);
+        console.error('Error message:', error.message);
+        console.error('Audio URL that failed:', audioUrl);
+        
+        // Fallback to standard Audio element if Web Audio fails
+        console.log('Trying fallback Audio element method...');
+        const audioElement = new Audio(audioUrl);
+        audioElement.volume = volume;
+        
+        audioElement.play()
+          .then(() => {
+            console.log('Fallback audio playback started');
+            setIsAudioPlaying(true);
+            
+            audioElement.onended = () => {
+              setIsAudioPlaying(false);
+            };
+          })
+          .catch(fallbackError => {
+            console.error('Fallback audio playback failed:', fallbackError);
+            
+            // Additional debugging information
+            console.log('Audio URL:', audioUrl);
+            console.log('User Agent:', navigator.userAgent);
+            console.log('Volume:', volume);
+            console.log('All playback methods failed');
+          });
+      });
+  } catch (error) {
+    console.error('Unexpected error in audio handling:', error);
+  }
+};
   
   const applyReceivedState = (state) => {
     if (!state) return;
@@ -591,11 +664,18 @@ const DroneChoirPerformer = () => {
     )?.[0]?.toUpperCase() || 'VOICE';
   };
 
-    const renderAudioNotification = () => {
+  const renderAudioNotification = () => {
     if (!lastAudioReceived) return null;
     
     return (
-      <div className="audio-notification">
+      <div 
+        className="audio-notification"
+        style={{
+          animationDuration: '5s', // Ensures minimum visibility
+          animationName: 'fadeInOut',
+          animationFillMode: 'forwards'
+        }}
+      >
         <div className="notification-content">
           <span className="notification-icon">🎵</span>
           <span className="notification-text">
