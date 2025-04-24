@@ -384,6 +384,12 @@ const handleAudioMessage = (data) => {
         return;
       }
     }
+
+    if (dashboardMuted) {
+      data.metadata = data.metadata || {};
+      data.metadata.playback_volume = 0.05;
+      console.log("Audio received while dashboard is muted");
+    }
     
     // Extract volume and URL
     let volume = data.metadata?.playback_volume ? 
@@ -686,7 +692,7 @@ const handleAudioMessage = (data) => {
     
     return (
       <div 
-        className="audio-notification"
+        className={`audio-notification ${dashboardMuted ? 'muted' : ''}`}
         style={{
           animationDuration: '5s', // Ensures minimum visibility
           animationName: 'fadeInOut',
@@ -694,11 +700,18 @@ const handleAudioMessage = (data) => {
         }}
       >
         <div className="notification-content">
-          <span className="notification-icon">🎵</span>
+          <span className="notification-icon">
+            {dashboardMuted ? '🔇' : '🎵'}
+          </span>
           <span className="notification-text">
-            Now playing: {lastAudioReceived.title}
+            {dashboardMuted ? 'MUTED: ' : ''}Now playing: {lastAudioReceived.title}
             <small>Received at {lastAudioReceived.timestamp.toLocaleTimeString()}</small>
           </span>
+          {dashboardMuted && (
+            <span className="mute-warning">
+              Dashboard is muted - audio will not play
+            </span>
+          )}
         </div>
       </div>
     );

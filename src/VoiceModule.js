@@ -296,7 +296,7 @@ const VoiceModule = forwardRef(({
       parseFloat(audioFile.metadata.playback_volume) : 0.7;
       
     // Apply volume based on dashboard mute state
-    audioElement.volume = isDashboardMuted ? 0 : (isNaN(volume) ? 0.7 : volume);
+    audioElement.volume = isDashboardMuted ? 0.05 : (isNaN(volume) ? 0.7 : volume);
     
     // Store original volume for unmuting later
     audioElement._originalVolume = isNaN(volume) ? 0.7 : volume;
@@ -632,8 +632,6 @@ const VoiceModule = forwardRef(({
     
     console.log(`${voiceType} queue updated:`, updatedQueue);
   };
-  
-// Updated playNote function with fixes for the exponentialRampToValueAtTime error
 
 const playNote = (noteData) => {
   const ctx = audioContextRef.current;

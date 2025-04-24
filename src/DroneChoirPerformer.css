@@ -419,6 +419,22 @@ h1.page-title {
   background-color: #3182ce;
 }
 
+.audio-notification.muted {
+  background-color: #ff4d4d1a;
+  border: 1px solid #ff4d4d;
+}
+
+.audio-notification .mute-warning {
+  color: #ff4d4d;
+  font-weight: bold;
+  margin-left: 10px;
+  font-size: 0.8em;
+}
+
+.audio-notification.muted .notification-icon {
+  color: #ff4d4d;
+}
+
 .connection-status {
   text-align: center;
   margin-bottom: 15px;
