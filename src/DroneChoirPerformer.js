@@ -131,6 +131,13 @@ const DroneChoirPerformer = () => {
     try {
       // Create audio context
       const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+
+      // Apply current mute state to all modules
+      Object.values(voiceModuleRefs).forEach(ref => {
+        if (ref.current && ref.current.setDashboardMute) {
+          ref.current.setDashboardMute(dashboardMuted);
+        }
+      });
       
       // Resume the audio context
       if (audioContext.state === 'suspended') {
@@ -170,12 +177,22 @@ const DroneChoirPerformer = () => {
     const newMuteState = !dashboardMuted;
     setDashboardMuted(newMuteState);
     
+    console.log(`Setting dashboard mute state to: ${newMuteState}`);
+    
     // Apply to all voice modules
-    Object.values(voiceModuleRefs).forEach(ref => {
-      if (ref.current) {
+    Object.entries(voiceModuleRefs).forEach(([voiceType, ref]) => {
+      if (ref.current && ref.current.setDashboardMute) {
+        console.log(`Applying ${newMuteState ? 'mute' : 'unmute'} to ${voiceType} module`);
         ref.current.setDashboardMute(newMuteState);
+      } else {
+        console.warn(`Could not apply mute to ${voiceType} module - ref or method missing`);
       }
     });
+    
+    // If we have an audio player reference, mute that too
+    if (audioPlayerRef.current) {
+      audioPlayerRef.current.setVolume(newMuteState ? 0 : 0.7);
+    }
     
     console.log(`Dashboard ${newMuteState ? 'muted' : 'unmuted'}`);
   }, [dashboardMuted]);
@@ -409,7 +426,7 @@ const handleAudioMessage = (data) => {
         
         // Create gain node for volume control
         const gainNode = audioContext.createGain();
-        gainNode.gain.setValueAtTime(volume, audioContext.currentTime);
+        gainNode.gain.setValueAtTime(dashboardMuted ? 0 : volume, audioContext.currentTime);
         
         // Connect nodes
         sourceNode.connect(gainNode);
@@ -779,11 +796,10 @@ const handleAudioMessage = (data) => {
           Stop All Voices
         </button>
         <button 
-          className="master-control-button mute"
+          className={`master-control-button mute ${dashboardMuted ? 'muted' : ''}`}
           onClick={toggleDashboardMute}
-          data-muted={dashboardMuted}
         >
-          {dashboardMuted ? 'Unmute Dashboard' : 'Mute Dashboard'}
+          {dashboardMuted ? '🔇 Unmute Dashboard' : '🔊 Mute Dashboard'}
         </button>
       </div>
       

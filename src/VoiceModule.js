@@ -294,7 +294,12 @@ const VoiceModule = forwardRef(({
     // Set up volume
     const volume = audioFile.metadata?.playback_volume ? 
       parseFloat(audioFile.metadata.playback_volume) : 0.7;
-    audioElement.volume = isNaN(volume) ? 0.7 : volume;
+      
+    // Apply volume based on dashboard mute state
+    audioElement.volume = isDashboardMuted ? 0 : (isNaN(volume) ? 0.7 : volume);
+    
+    // Store original volume for unmuting later
+    audioElement._originalVolume = isNaN(volume) ? 0.7 : volume;
     
     // Add metadata to audio element for access by the progress indicator
     audioElement.metaData = audioFile.metadata;
@@ -456,7 +461,38 @@ const VoiceModule = forwardRef(({
     setDashboardMute: (muted) => {
       setIsDashboardMuted(muted);
       if (audioElementRef.current) {
-        audioElementRef.current.volume = muted ? 0 : 0.7;
+        // Store the original volume for later unmuting
+        if (!audioElementRef.current._originalVolume) {
+          audioElementRef.current._originalVolume = audioElementRef.current.volume;
+        }
+        
+        // Set volume based on mute state
+        audioElementRef.current.volume = muted ? 0 : audioElementRef.current._originalVolume;
+        console.log(`${voiceType} audio file playback ${muted ? 'muted' : 'unmuted'}, volume: ${audioElementRef.current.volume}`);
+      }
+      
+      // Apply to oscillator if playing a note
+      if (gainNodeRef.current && audioContextRef.current) {
+        try {
+          // Get the current time from audio context
+          const now = audioContextRef.current.currentTime;
+          
+          // Store the current gain value if we haven't yet
+          if (typeof gainNodeRef.current._originalGain === 'undefined') {
+            gainNodeRef.current._originalGain = gainNodeRef.current.gain.value;
+          }
+          
+          // Calculate target gain based on mute state
+          const targetGain = muted ? 0 : gainNodeRef.current._originalGain;
+          
+          // Apply gain change with small ramp to avoid clicks
+          gainNodeRef.current.gain.setValueAtTime(gainNodeRef.current.gain.value, now);
+          gainNodeRef.current.gain.linearRampToValueAtTime(targetGain, now + 0.05);
+          
+          console.log(`${voiceType} oscillator ${muted ? 'muted' : 'unmuted'}, gain: ${targetGain}`);
+        } catch (error) {
+          console.error(`Error adjusting gain for ${voiceType}:`, error);
+        }
       }
     },
   }));
@@ -597,142 +633,153 @@ const VoiceModule = forwardRef(({
     console.log(`${voiceType} queue updated:`, updatedQueue);
   };
   
-  // Modify playNote to use the consistent audio context
-  const playNote = (noteData) => {
-    const ctx = audioContextRef.current;
-    const gainMultiplier = (isSoloMode && !isCurrentSolo) ? 0 : 1;
+// Updated playNote function with fixes for the exponentialRampToValueAtTime error
 
-    if (!ctx) {
-      console.error(`No audio context available for ${voiceType}`);
-      return;
-    }
-    
-    // Stop any currently playing note completely
-    if (oscillatorRef.current) {
-      try {
-        oscillatorRef.current.stop();
-        oscillatorRef.current.disconnect();
-        
-        if (gainNodeRef.current) {
-          gainNodeRef.current.disconnect();
-        }
-        
-        // Cancel any existing animation frame
-        if (animationFrameRef.current) {
-          cancelAnimationFrame(animationFrameRef.current);
-          animationFrameRef.current = null;
-        }
-        
-        oscillatorRef.current = null;
-        gainNodeRef.current = null;
-      } catch (e) {
-        console.log(`Error stopping previous oscillator in ${voiceType}:`, e);
-      }
-    }
-    
-    // Create new audio nodes using the consistent context
+const playNote = (noteData) => {
+  const ctx = audioContextRef.current;
+
+  if (!ctx) {
+    console.error(`No audio context available for ${voiceType}`);
+    return;
+  }
+  
+  // Stop any currently playing note completely
+  if (oscillatorRef.current) {
     try {
-      // Create new oscillator
-      const oscillator = ctx.createOscillator();
-      const gainNode = ctx.createGain();
+      oscillatorRef.current.stop();
+      oscillatorRef.current.disconnect();
       
-      // Create an analyser for visualization
-      const analyser = ctx.createAnalyser();
-      analyser.fftSize = 2048;
-      analyserRef.current = analyser;
+      if (gainNodeRef.current) {
+        gainNodeRef.current.disconnect();
+      }
       
-      // Set up oscillator
-      oscillator.type = 'sine';
-      oscillator.frequency.setValueAtTime(noteData.frequency, ctx.currentTime);
+      // Cancel any existing animation frame
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+        animationFrameRef.current = null;
+      }
       
-      // Implement 5-second fade in and out
-      const noteDuration = noteData.duration;
-      const fadeDuration = 5; // 5-second fade
+      oscillatorRef.current = null;
+      gainNodeRef.current = null;
+    } catch (e) {
+      console.log(`Error stopping previous oscillator in ${voiceType}:`, e);
+    }
+  }
+  
+  // Create new audio nodes using the consistent context
+  try {
+    // Create new oscillator
+    const oscillator = ctx.createOscillator();
+    const gainNode = ctx.createGain();
+    
+    // Create an analyser for visualization
+    const analyser = ctx.createAnalyser();
+    analyser.fftSize = 2048;
+    analyserRef.current = analyser;
+    
+    // Set up oscillator
+    oscillator.type = 'sine';
+    oscillator.frequency.setValueAtTime(noteData.frequency, ctx.currentTime);
+    
+    // Implement fade in and out durations
+    const noteDuration = noteData.duration;
+    const fadeDuration = 5; // 5-second fade
+    
+    // Calculate actual fade durations
+    const fadeInDuration = Math.min(fadeDuration, noteDuration / 2);
+    const fadeOutDuration = Math.min(fadeDuration, noteDuration / 2);
+    
+    // Get maximum gain from note data or use default
+    const maxGain = noteData.max_gain || 0.5;
+    
+    // Store original gain for future reference
+    gainNode._originalGain = maxGain;
+    
+    // If dashboard is muted or note is muted due to solo mode, use a very low gain
+    // Otherwise use the normal gain
+    const shouldBeMuted = isDashboardMuted || (isSoloMode && !isCurrentSolo);
+    const effectiveGain = shouldBeMuted ? 0.00001 : maxGain;
+    
+    console.log(`[${voiceType}] Note Details:`, {
+      note: noteData.note,
+      frequency: noteData.frequency,
+      totalDuration: noteDuration,
+      fadeInDuration,
+      fadeOutDuration,
+      maxGain,
+      effectiveGain,
+      isMuted: shouldBeMuted
+    });
+    
+    // Always start with a very small value
+    gainNode.gain.setValueAtTime(0.001, ctx.currentTime);
+    
+    // If muted, stay at a very low gain level throughout the note
+    if (shouldBeMuted) {
+      console.log(`[${voiceType}] Note is muted - maintaining very low gain (0.00001)`);
+      gainNode.gain.linearRampToValueAtTime(0.00001, ctx.currentTime + 0.1);
+    } else {
+      // Normal fade-in for unmuted notes
+      console.log(`[${voiceType}] Fade-in: 0.001 -> ${effectiveGain} over ${fadeInDuration} seconds`);
+      gainNode.gain.exponentialRampToValueAtTime(effectiveGain, ctx.currentTime + fadeInDuration);
       
-      // Calculate actual fade durations
-      const fadeInDuration = Math.min(fadeDuration, noteDuration / 2);
-      const fadeOutDuration = Math.min(fadeDuration, noteDuration / 2);
-      
-      console.log(`[${voiceType}] Note Details:`, {
-        note: noteData.note,
-        frequency: noteData.frequency,
-        totalDuration: noteDuration,
-        fadeInDuration,
-        fadeOutDuration,
-        maxGain: noteData.max_gain
-      });
-
-      // Gain control with detailed logging
-      console.log(`[${voiceType}] Starting gain at near-zero`);
-      const maxGain = noteData.max_gain || 0.5; // Get max_gain from noteData or set a default value
-      gainNode.gain.setValueAtTime(0.001, ctx.currentTime);
-
-      console.log(`[${voiceType}] Fade-in: 0.001 -> ${maxGain} over ${fadeInDuration} seconds`);
-      gainNode.gain.exponentialRampToValueAtTime(
-        maxGain * gainMultiplier,
-        ctx.currentTime + fadeInDuration
-      );
-
       // Maintain volume if note is longer than fade-in + fade-out
       if (noteDuration > fadeInDuration * 2) {
-        console.log(`[${voiceType}] Maintaining volume at ${maxGain} for sustained period`);
-        gainNode.gain.setValueAtTime(
-          maxGain * gainMultiplier, 
-          ctx.currentTime + noteDuration - fadeOutDuration
-        );
+        console.log(`[${voiceType}] Maintaining volume at ${effectiveGain} for sustained period`);
+        gainNode.gain.setValueAtTime(effectiveGain, ctx.currentTime + noteDuration - fadeOutDuration);
+      }
+      
+      // Fade-out
+      console.log(`[${voiceType}] Fade-out: ${effectiveGain} -> 0.001 over ${fadeOutDuration} seconds`);
+      gainNode.gain.linearRampToValueAtTime(0.001, ctx.currentTime + noteDuration);
+    }
+    
+    // Connect nodes with analyser
+    oscillator.connect(gainNode);
+    gainNode.connect(analyser);
+    analyser.connect(ctx.destination);
+    
+    // Store references
+    oscillatorRef.current = oscillator;
+    gainNodeRef.current = gainNode;
+    
+    // Set up visualization before starting
+    setupVisualization();
+    
+    // Start and schedule stop
+    oscillator.start();
+    oscillator.stop(ctx.currentTime + noteDuration);
+    
+    // Log playback start
+    console.log(`${voiceType} playing note: ${noteData.note} (${noteData.frequency.toFixed(2)} Hz)`);
+    
+    // Schedule cleanup
+    oscillator.onended = () => {
+      console.log(`${voiceType} note finished: ${noteData.note} (${noteData.frequency.toFixed(2)} Hz)`);
+
+      oscillator.disconnect();
+      gainNode.disconnect();
+      analyser.disconnect();
+      
+      if (oscillatorRef.current === oscillator) {
+        oscillatorRef.current = null;
+      }
+      if (gainNodeRef.current === gainNode) {
+        gainNodeRef.current = null;
+      }
+      
+      // Stop animation frame
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+        animationFrameRef.current = null;
       }
 
-      console.log(`[${voiceType}] Fade-out: ${maxGain} -> 0.001 over ${fadeOutDuration} seconds`);
-      gainNode.gain.exponentialRampToValueAtTime(
-        0.001, // Near zero, not completely zero to avoid click
-        ctx.currentTime + noteDuration
-      );
-      
-      // Connect nodes with analyser
-      oscillator.connect(gainNode);
-      gainNode.connect(analyser);
-      analyser.connect(ctx.destination);
-      
-      // Store references
-      oscillatorRef.current = oscillator;
-      gainNodeRef.current = gainNode;
-      
-      // Set up visualization before starting
-      setupVisualization();
-      
-      // Start and schedule stop
-      oscillator.start();
-      oscillator.stop(ctx.currentTime + noteDuration);
-      
-      console.log(`${voiceType} playing note: ${noteData.note} (${noteData.frequency.toFixed(2)} Hz)`);
-      
-      // Schedule cleanup
-      oscillator.onended = () => {
-        console.log(`${voiceType} note finished: ${noteData.note} (${noteData.frequency.toFixed(2)} Hz)`);
-
-        oscillator.disconnect();
-        gainNode.disconnect();
-        analyser.disconnect();
-        
-        if (oscillatorRef.current === oscillator) {
-          oscillatorRef.current = null;
-        }
-        if (gainNodeRef.current === gainNode) {
-          gainNodeRef.current = null;
-        }
-        
-        // Stop animation frame
-        if (animationFrameRef.current) {
-          cancelAnimationFrame(animationFrameRef.current);
-          animationFrameRef.current = null;
-        }
-
-        playNextInQueue();
-      };
-    } catch (e) {
-      console.error(`Error playing note in ${voiceType}:`, e);
-    }
-  };
+      playNextInQueue();
+    };
+  } catch (e) {
+    console.error(`Error playing note in ${voiceType}:`, e);
+  }
+};
 
 const adjustVolumeForSolo = (soloVolume) => {
   if (gainNodeRef.current) {

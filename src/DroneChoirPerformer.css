@@ -366,6 +366,30 @@ h1.page-title {
   transition: background-color 0.2s;
   box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
   min-width: 220px; /* Add a minimum width to make buttons more uniform */
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.master-control-button.mute::before {
+  content: "";
+  width: 16px;
+  height: 16px;
+  margin-right: 6px;
+  border-radius: 50%;
+  background-color: #4CAF50;
+  transition: background-color 0.3s ease;
+}
+
+.master-control-button.mute.muted::before {
+  background-color: #f44336;
+}
+
+.master-control-button.mute.muted {
+  background-color: #ff6b6b;
+  color: white;
+  font-weight: bold;
 }
 
 .master-control-button.start {

@@ -131,6 +131,22 @@ class AudioPlayer {
       console.warn('Web Audio API not supported in this browser');
     }
   }
+
+  setMuted(muted) {
+    if (this.currentAudio) {
+      // Store original volume if needed
+      if (typeof this.currentAudio._originalVolume === 'undefined') {
+        this.currentAudio._originalVolume = this.currentAudio.volume;
+      }
+      
+      // Set volume based on mute state
+      this.currentAudio.volume = muted ? 0 : this.currentAudio._originalVolume;
+      console.log(`AudioPlayer ${muted ? 'muted' : 'unmuted'}, volume: ${this.currentAudio.volume}`);
+    }
+    
+    // Store mute state for future playback
+    this.isMuted = muted;
+  }
   
   playNextInQueue() {
     if (this.audioQueue.length === 0) {
@@ -174,6 +190,11 @@ class AudioPlayer {
     };
     
     // Start playback
+    if (this.isMuted) {
+      this.currentAudio._originalVolume = this.currentAudio.volume;
+      this.currentAudio.volume = 0;
+    }
+    
     this.currentAudio.play()
       .then(() => {
         console.log('Audio playback started successfully');
