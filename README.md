@@ -1,17 +1,13 @@
 
-In the project directory, you can run:
-
+In the drone-choir-app directory, run:
 ### `npm start`
 
 Open [http://localhost:8080](http://localhost:8080) to view it in your browser.
 
-### `npm run build`
-
-Builds the app for production to the `build` folder.
-
+Open another terminal in the drone-choir-app directory and run:
 ### `node server.js`
 
-Run this command in the root folder to start the websocket server
+Open another terminal in the drone-choir-app directory and run:
 
 ### `node api-server.js`
 

@@ -1,9 +1,9 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import './DroneChoirPerformer.css';
 import VoiceModule from './VoiceModule';
-import { startUnison, startAll, stopAll } from './performance';
+import { stopAll } from './performance';
 import socketManager from './DroneSocketManager';
-import { VOICE_RANGES, generateRandomNote } from './voiceTypes';
+import { VOICE_RANGES } from './voiceTypes';
 import { io } from 'socket.io-client';
 import AudioPlayer from './audioPlayer';
 
@@ -24,7 +24,17 @@ const DroneChoirPerformer = () => {
   const [isAudioPlaying, setIsAudioPlaying] = useState(false);
   const audioPlayerRef = useRef(null);
 
-  const apiSocket = io('http://localhost:3000'); 
+   const getApiUrl = () => {
+    // If we're on localhost, use localhost
+    if (window.location.hostname === 'localhost') {
+      return 'http://localhost:3000';
+    }
+    
+    // Otherwise use the current hostname with port 3000
+    return `http://${window.location.hostname}:3000`;
+  };
+
+  const apiSocket = io(getApiUrl());
   
   // Create refs to access the voice module methods
   const voiceModuleRefs = {
@@ -131,13 +141,6 @@ const DroneChoirPerformer = () => {
     try {
       // Create audio context
       const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-
-      // Apply current mute state to all modules
-      Object.values(voiceModuleRefs).forEach(ref => {
-        if (ref.current && ref.current.setDashboardMute) {
-          ref.current.setDashboardMute(dashboardMuted);
-        }
-      });
       
       // Resume the audio context
       if (audioContext.state === 'suspended') {
@@ -177,22 +180,12 @@ const DroneChoirPerformer = () => {
     const newMuteState = !dashboardMuted;
     setDashboardMuted(newMuteState);
     
-    console.log(`Setting dashboard mute state to: ${newMuteState}`);
-    
     // Apply to all voice modules
-    Object.entries(voiceModuleRefs).forEach(([voiceType, ref]) => {
-      if (ref.current && ref.current.setDashboardMute) {
-        console.log(`Applying ${newMuteState ? 'mute' : 'unmute'} to ${voiceType} module`);
+    Object.values(voiceModuleRefs).forEach(ref => {
+      if (ref.current) {
         ref.current.setDashboardMute(newMuteState);
-      } else {
-        console.warn(`Could not apply mute to ${voiceType} module - ref or method missing`);
       }
     });
-    
-    // If we have an audio player reference, mute that too
-    if (audioPlayerRef.current) {
-      audioPlayerRef.current.setVolume(newMuteState ? 0 : 0.7);
-    }
     
     console.log(`Dashboard ${newMuteState ? 'muted' : 'unmuted'}`);
   }, [dashboardMuted]);
@@ -384,12 +377,6 @@ const handleAudioMessage = (data) => {
         return;
       }
     }
-
-    if (dashboardMuted) {
-      data.metadata = data.metadata || {};
-      data.metadata.playback_volume = 0.05;
-      console.log("Audio received while dashboard is muted");
-    }
     
     // Extract volume and URL
     let volume = data.metadata?.playback_volume ? 
@@ -432,7 +419,7 @@ const handleAudioMessage = (data) => {
         
         // Create gain node for volume control
         const gainNode = audioContext.createGain();
-        gainNode.gain.setValueAtTime(dashboardMuted ? 0 : volume, audioContext.currentTime);
+        gainNode.gain.setValueAtTime(volume, audioContext.currentTime);
         
         // Connect nodes
         sourceNode.connect(gainNode);
@@ -575,20 +562,20 @@ const handleAudioMessage = (data) => {
     }
   };
 
-  const handleSoloToggle = useCallback((voiceType, isSolo) => {
-    if (viewMode !== 'controller') return;
+  // const handleSoloToggle = useCallback((voiceType, isSolo) => {
+  //   if (viewMode !== 'controller') return;
     
-    console.log('Solo toggle called:', { voiceType, isSolo });
+  //   console.log('Solo toggle called:', { voiceType, isSolo });
     
-    if (isSolo) {
-      setSoloVoice(voiceType);
-    } else {
-      setSoloVoice(null);
-    }
+  //   if (isSolo) {
+  //     setSoloVoice(voiceType);
+  //   } else {
+  //     setSoloVoice(null);
+  //   }
     
-    // Broadcast state after change
-    setTimeout(broadcastState, 100);
-  }, [viewMode]);
+  //   // Broadcast state after change
+  //   setTimeout(broadcastState, 100);
+  // }, [viewMode]);
   
   // Initialize shared audio context for all voice modules
   const initSharedAudioContext = useCallback(() => {
@@ -625,50 +612,50 @@ const handleAudioMessage = (data) => {
   }, []);
   
   // Handle start unison button click
-  const handleStartUnison = useCallback(() => {
-    if (viewMode !== 'controller') return;
+  // const handleStartUnison = useCallback(() => {
+  //   if (viewMode !== 'controller') return;
     
-    // Check if audio is initialized
-    if (!audioInitialized) {
-      console.log('Audio not initialized, initializing now');
-      initializeAudio();
+  //   // Check if audio is initialized
+  //   if (!audioInitialized) {
+  //     console.log('Audio not initialized, initializing now');
+  //     initializeAudio();
       
-      // Allow time for audio initialization
-      setTimeout(() => {
-        console.log('Starting unison after audio initialization');
-        startUnison(voiceModuleRefs, initSharedAudioContext, setIsAllPlaying);
-        setTimeout(broadcastState, 100);
-      }, 500);
-      return;
-    }
+  //     // Allow time for audio initialization
+  //     setTimeout(() => {
+  //       console.log('Starting unison after audio initialization');
+  //       startUnison(voiceModuleRefs, initSharedAudioContext, setIsAllPlaying);
+  //       setTimeout(broadcastState, 100);
+  //     }, 500);
+  //     return;
+  //   }
     
-    // Audio already initialized, proceed normally
-    startUnison(voiceModuleRefs, initSharedAudioContext, setIsAllPlaying);
-    setTimeout(broadcastState, 100);
-  }, [viewMode, audioInitialized, initializeAudio, initSharedAudioContext]);
+  //   // Audio already initialized, proceed normally
+  //   startUnison(voiceModuleRefs, initSharedAudioContext, setIsAllPlaying);
+  //   setTimeout(broadcastState, 100);
+  // }, [viewMode, audioInitialized, initializeAudio, initSharedAudioContext]);
   
   // Handle start all button click
-  const handleStartAll = useCallback(() => {
-    if (viewMode !== 'controller') return;
+  // const handleStartAll = useCallback(() => {
+  //   if (viewMode !== 'controller') return;
     
-    // Check if audio is initialized
-    if (!audioInitialized) {
-      console.log('Audio not initialized, initializing now');
-      initializeAudio();
+  //   // Check if audio is initialized
+  //   if (!audioInitialized) {
+  //     console.log('Audio not initialized, initializing now');
+  //     initializeAudio();
       
-      // Allow time for audio initialization
-      setTimeout(() => {
-        console.log('Starting all voices after audio initialization');
-        startAll(voiceModuleRefs, initSharedAudioContext, setIsAllPlaying);
-        setTimeout(broadcastState, 100);
-      }, 500);
-      return;
-    }
+  //     // Allow time for audio initialization
+  //     setTimeout(() => {
+  //       console.log('Starting all voices after audio initialization');
+  //       startAll(voiceModuleRefs, initSharedAudioContext, setIsAllPlaying);
+  //       setTimeout(broadcastState, 100);
+  //     }, 500);
+  //     return;
+  //   }
     
-    // Audio already initialized, proceed normally
-    startAll(voiceModuleRefs, initSharedAudioContext, setIsAllPlaying);
-    setTimeout(broadcastState, 100);
-  }, [viewMode, audioInitialized, initializeAudio, initSharedAudioContext]);
+  //   // Audio already initialized, proceed normally
+  //   startAll(voiceModuleRefs, initSharedAudioContext, setIsAllPlaying);
+  //   setTimeout(broadcastState, 100);
+  // }, [viewMode, audioInitialized, initializeAudio, initSharedAudioContext]);
   
   // Handle stop all button click
   const handleStopAll = useCallback(() => {
@@ -692,7 +679,7 @@ const handleAudioMessage = (data) => {
     
     return (
       <div 
-        className={`audio-notification ${dashboardMuted ? 'muted' : ''}`}
+        className="audio-notification"
         style={{
           animationDuration: '5s', // Ensures minimum visibility
           animationName: 'fadeInOut',
@@ -700,69 +687,62 @@ const handleAudioMessage = (data) => {
         }}
       >
         <div className="notification-content">
-          <span className="notification-icon">
-            {dashboardMuted ? '🔇' : '🎵'}
-          </span>
+          <span className="notification-icon">🎵</span>
           <span className="notification-text">
-            {dashboardMuted ? 'MUTED: ' : ''}Now playing: {lastAudioReceived.title}
+            Now playing: {lastAudioReceived.title}
             <small>Received at {lastAudioReceived.timestamp.toLocaleTimeString()}</small>
           </span>
-          {dashboardMuted && (
-            <span className="mute-warning">
-              Dashboard is muted - audio will not play
-            </span>
-          )}
         </div>
       </div>
     );
   };
   
-  // If in single voice mode, render only that voice module
-  if (VOICE_RANGES[singleVoiceMode]) {
-    const voiceType = singleVoiceMode;
-    const range = VOICE_RANGES[voiceType];
-    const rangeLabel = getRangeLabel(voiceType);
+  // // If in single voice mode, render only that voice module
+  // if (VOICE_RANGES[singleVoiceMode]) {
+  //   const voiceType = singleVoiceMode;
+  //   const range = VOICE_RANGES[voiceType];
+  //   const rangeLabel = getRangeLabel(voiceType);
 
-    console.log('Single Voice Mode:', {
-      voiceType,
-      range,
-      rangeLabel,
-      singleVoiceMode
-    });
+  //   console.log('Single Voice Mode:', {
+  //     voiceType,
+  //     range,
+  //     rangeLabel,
+  //     singleVoiceMode
+  //   });
     
-    return (
-      <div className="drone-choir-single">
-        <h1>{rangeLabel} VOICE</h1>
-        {isAudioPlaying && (
-          <div className="audio-playing-indicator">
-            <span>🎵 Playing Audio 🎵</span>
-          </div>
-        )}
-        {renderAudioNotification()}
-        <div className="single-voice-container">
-          <VoiceModule 
-            key={voiceType}
-            voiceType={voiceType} 
-            voiceRange={range}
-            rangeLabel={rangeLabel}
-            ref={voiceModuleRefs[voiceType]}
-            onPlayStateChange={(isPlaying) => {
-              // Only controller can change play state
-              if (viewMode !== 'controller') return;
+  //   return (
+  //     <div className="drone-choir-single">
+  //       <h1>{rangeLabel} VOICE</h1>
+  //       {isAudioPlaying && (
+  //         <div className="audio-playing-indicator">
+  //           <span>🎵 Playing Audio 🎵</span>
+  //         </div>
+  //       )}
+  //       {renderAudioNotification()}
+  //       <div className="single-voice-container">
+  //         <VoiceModule 
+  //           key={voiceType}
+  //           voiceType={voiceType} 
+  //           voiceRange={range}
+  //           rangeLabel={rangeLabel}
+  //           ref={voiceModuleRefs[voiceType]}
+  //           onPlayStateChange={(isPlaying) => {
+  //             // Only controller can change play state
+  //             if (viewMode !== 'controller') return;
               
-              // Broadcast state after change
-              setTimeout(broadcastState, 100);
-            }}
-            onSoloToggle={handleSoloToggle}
-            isSoloMode={false}
-            isCurrentSolo={false}
-            isViewerMode={viewMode === 'viewer'}
-            isSingleMode={true}
-          />
-        </div>
-      </div>
-    );
-  }
+  //             // Broadcast state after change
+  //             setTimeout(broadcastState, 100);
+  //           }}
+  //           onSoloToggle={handleSoloToggle}
+  //           isSoloMode={false}
+  //           isCurrentSolo={false}
+  //           isViewerMode={viewMode === 'viewer'}
+  //           isSingleMode={true}
+  //         />
+  //       </div>
+  //     </div>
+  //   );
+  // }
   
   // If not connected yet, show connecting message
   if (!isConnected) {
@@ -788,20 +768,6 @@ const handleAudioMessage = (data) => {
       {/* Master controls */}
       <div className="master-controls">
         <button 
-          className="master-control-button initial" 
-          onClick={handleStartUnison}
-          disabled={isAllPlaying || viewMode !== 'controller'}
-        >
-          Start on A Note (20s)
-        </button>
-        <button 
-          className="master-control-button start" 
-          onClick={handleStartAll}
-          disabled={isAllPlaying || viewMode !== 'controller'}
-        >
-          Start All Voices
-        </button>
-        <button 
           className="master-control-button stop" 
           onClick={handleStopAll}
           disabled={!isAllPlaying || viewMode !== 'controller'}
@@ -809,10 +775,11 @@ const handleAudioMessage = (data) => {
           Stop All Voices
         </button>
         <button 
-          className={`master-control-button mute ${dashboardMuted ? 'muted' : ''}`}
+          className="master-control-button mute"
           onClick={toggleDashboardMute}
+          data-muted={dashboardMuted}
         >
-          {dashboardMuted ? '🔇 Unmute Dashboard' : '🔊 Mute Dashboard'}
+          {dashboardMuted ? 'Unmute Dashboard' : 'Mute Dashboard'}
         </button>
       </div>
       
@@ -845,9 +812,6 @@ const handleAudioMessage = (data) => {
                 // Broadcast state after change
                 setTimeout(broadcastState, 100);
               }}
-              onSoloToggle={handleSoloToggle}
-              isSoloMode={soloVoice !== null}
-              isCurrentSolo={soloVoice === voiceType}
               isViewerMode={viewMode === 'viewer'}
             />
           </div>

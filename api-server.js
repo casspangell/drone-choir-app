@@ -115,6 +115,25 @@ app.post('/api/drone-update', (req, res) => {
   });
 });
 
+// ENDPOINT to receive queue updates from Python
+app.post('/api/queue-update', (req, res) => {
+  const data = req.body;
+  console.log('Received queue update data:', JSON.stringify(data, null, 2));
+  
+  // Broadcast to all connected clients
+  io.emit('queue-update', {
+    timestamp: new Date().toISOString(),
+    queue: data.queue || [],
+    currentSound: data.currentSound,
+    remainingTime: data.remainingTime || 0
+  });
+  
+  res.status(200).json({ 
+    status: 'success', 
+    message: 'Queue data received and broadcast to clients' 
+  });
+});
+
 // ENDPOINT to receive MP3 audio files
 app.post('/api/audio-upload', upload.single('audio'), (req, res) => {
   try {

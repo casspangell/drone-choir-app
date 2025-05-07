@@ -53,25 +53,6 @@ export const getVoiceConfig = (voiceType) => {
 };
 
 /**
- * Generate a random frequency within a given voice range
- * @param {Object} voiceRange - Voice range configuration
- * @param {number} [minDuration=3] - Minimum note duration
- * @param {number} [maxDuration=8] - Maximum note duration
- * @returns {Object} Generated note object
- */
-export const generateRandomNote = (voiceRange, minDuration = 20, maxDuration = 20) => { //kilroy
-    const frequency = Math.random() * (voiceRange.max - voiceRange.min) + voiceRange.min;
-    const duration = Math.random() * (maxDuration - minDuration) + minDuration;
-    const note = getNoteName(frequency);
-    
-    return {
-        frequency,
-        duration,
-        note
-    };
-};
-
-/**
  * Get note name from a given frequency
  * @param {number} frequency - Frequency in Hz
  * @returns {string} Note name (e.g., 'A4')
@@ -102,7 +83,6 @@ export const getAllVoiceTypes = () => {
 const voiceTypesExport = {
     VOICE_RANGES,
     getVoiceConfig,
-    generateRandomNote,
     getNoteName,
     getAllVoiceTypes
 };
@@ -110,7 +90,6 @@ const voiceTypesExport = {
 export default {
     VOICE_RANGES,
     getVoiceConfig,
-    generateRandomNote,
     getNoteName,
     getAllVoiceTypes
 };
