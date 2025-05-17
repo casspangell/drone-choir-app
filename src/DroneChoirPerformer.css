@@ -313,7 +313,7 @@ h1.page-title {
 
 .visualization-container {
   background-color: #1a202c;
-  height: 120px;
+  height: 5em;
   border-radius: 8px;
   margin-bottom: 15px;
   padding: 10px;
@@ -561,7 +561,7 @@ h1.page-title {
 
 /* Enhance visualization for single mode */
 .single-voice-container .visualization-container {
-  height: 180px; /* Taller visualization */
+  height: 4em;
 }
 
 .input-notification {
@@ -599,7 +599,7 @@ h1.page-title {
   }
   
   .single-voice-container .visualization-container {
-    height: 150px;
+    height: 4em;
   }
 }
 

@@ -697,52 +697,46 @@ const handleAudioMessage = (data) => {
     );
   };
   
-  // // If in single voice mode, render only that voice module
-  // if (VOICE_RANGES[singleVoiceMode]) {
-  //   const voiceType = singleVoiceMode;
-  //   const range = VOICE_RANGES[voiceType];
-  //   const rangeLabel = getRangeLabel(voiceType);
+  // If in single voice mode, render only that voice module
+  if (VOICE_RANGES[singleVoiceMode]) {
+    const voiceType = singleVoiceMode;
+    const range = VOICE_RANGES[voiceType];
+    const rangeLabel = getRangeLabel(voiceType);
 
-  //   console.log('Single Voice Mode:', {
-  //     voiceType,
-  //     range,
-  //     rangeLabel,
-  //     singleVoiceMode
-  //   });
+    console.log('Single Voice Mode:', {
+      voiceType,
+      range,
+      rangeLabel,
+      singleVoiceMode
+    });
     
-  //   return (
-  //     <div className="drone-choir-single">
-  //       <h1>{rangeLabel} VOICE</h1>
-  //       {isAudioPlaying && (
-  //         <div className="audio-playing-indicator">
-  //           <span>🎵 Playing Audio 🎵</span>
-  //         </div>
-  //       )}
-  //       {renderAudioNotification()}
-  //       <div className="single-voice-container">
-  //         <VoiceModule 
-  //           key={voiceType}
-  //           voiceType={voiceType} 
-  //           voiceRange={range}
-  //           rangeLabel={rangeLabel}
-  //           ref={voiceModuleRefs[voiceType]}
-  //           onPlayStateChange={(isPlaying) => {
-  //             // Only controller can change play state
-  //             if (viewMode !== 'controller') return;
+    return (
+      <div className="drone-choir-single">
+        <h1>{rangeLabel} VOICE</h1>
+        {renderAudioNotification()}
+        <div className="single-voice-container">
+          <VoiceModule 
+            key={voiceType}
+            voiceType={voiceType} 
+            voiceRange={range}
+            rangeLabel={rangeLabel}
+            ref={voiceModuleRefs[voiceType]}
+            onPlayStateChange={(isPlaying) => {
+              // Only controller can change play state
+              if (viewMode !== 'controller') return;
               
-  //             // Broadcast state after change
-  //             setTimeout(broadcastState, 100);
-  //           }}
-  //           onSoloToggle={handleSoloToggle}
-  //           isSoloMode={false}
-  //           isCurrentSolo={false}
-  //           isViewerMode={viewMode === 'viewer'}
-  //           isSingleMode={true}
-  //         />
-  //       </div>
-  //     </div>
-  //   );
-  // }
+              // Broadcast state after change
+              setTimeout(broadcastState, 100);
+            }}
+            isSoloMode={false}
+            isCurrentSolo={false}
+            isViewerMode={viewMode === 'viewer'}
+            isSingleMode={true}
+          />
+        </div>
+      </div>
+    );
+  }
   
   // If not connected yet, show connecting message
   if (!isConnected) {

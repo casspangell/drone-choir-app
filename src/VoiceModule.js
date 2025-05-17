@@ -48,6 +48,20 @@ const VoiceModule = forwardRef(({
   const apiSocketRef = useRef(null);
   const [processedAudioFiles, setProcessedAudioFiles] = useState(new Set());
 
+  const [movementInstruction, setMovementInstruction] = useState(null);
+  const [movementKeyword, setMovementKeyword] = useState('');
+  const [movementTimer, setMovementTimer] = useState(0);
+  const movementTimerRef = useRef(null);
+
+  const [thematicText, setThematicText] = useState(null);
+  const [thematicSection, setThematicSection] = useState('');
+  const [thematicType, setThematicType] = useState('');
+  const [thematicTimer, setThematicTimer] = useState(0);
+  const thematicTimerRef = useRef(null);
+
+  const [performanceComplete, setPerformanceComplete] = useState(false);
+  const [voiceShape, setVoiceShape] = useState('');
+
   // Mapping for URL parameters to voice types
   const voiceRangeMapping = {
     'high': 'soprano',
@@ -55,6 +69,36 @@ const VoiceModule = forwardRef(({
     'low-mid': 'tenor',
     'low': 'bass'
   };
+
+  useEffect(() => {
+    if (!apiSocketRef.current) return;
+    
+    const handleThematicInstruction = (data) => {
+      console.log(`${voiceType} received thematic instruction:`, data);
+      
+      // Check if this is a performance_complete signal
+      if (data.data && data.data.type === 'performance_complete' && data.data.is_final) {
+        console.log('📢 Performance complete signal received!');
+        setPerformanceComplete(true);
+        
+        // Stop any playing audio
+        if (audioElementRef.current) {
+          audioElementRef.current.pause();
+        }
+      } else {
+        // Normal thematic instruction
+        handleThematicInstruction(data.data);
+      }
+    };
+    
+    apiSocketRef.current.on('thematic-instruction-received', handleThematicInstruction);
+    
+    return () => {
+      if (apiSocketRef.current) {
+        apiSocketRef.current.off('thematic-instruction-received', handleThematicInstruction);
+      }
+    };
+  }, [voiceType]);
 
   // Connect to the API socket when component mounts
   useEffect(() => {
@@ -105,6 +149,23 @@ const VoiceModule = forwardRef(({
     };
   }, [voiceType]);
 
+  // Listen for thematic instructions
+  useEffect(() => {
+    if (!apiSocketRef.current) return;
+    
+    // Listen for thematic instructions
+    apiSocketRef.current.on('thematic-instruction-received', (data) => {
+      console.log(`${voiceType} received thematic instruction:`, data);
+      handleThematicInstruction(data.data);
+    });
+    
+    return () => {
+      if (apiSocketRef.current) {
+        apiSocketRef.current.off('thematic-instruction-received');
+      }
+    };
+  }, [voiceType]);
+
   // To manage periodic queue checking
   useEffect(() => {
     // Only start checking if the module is playing
@@ -124,6 +185,26 @@ const VoiceModule = forwardRef(({
       clearInterval(queueCheckInterval);
     };
   }, [isPlayingRef.current, audioQueueRef.current.length]);
+
+  useEffect(() => {
+    if (!apiSocketRef.current) return;
+    
+    // Listen for movement instructions
+    apiSocketRef.current.on('movement-instruction-received', (data) => {
+      console.log(`${voiceType} received movement instruction:`, data);
+      
+      // Check if this instruction is for this voice or for all voices
+      if (data.data.voice_type === 'all' || data.data.voice_type === voiceType) {
+        handleMovementInstruction(data.data);
+      }
+    });
+    
+    return () => {
+      if (apiSocketRef.current) {
+        apiSocketRef.current.off('movement-instruction-received');
+      }
+    };
+  }, [voiceType]);
 
   // Effect for checking URL query parameters and detecting single voice mode
   useEffect(() => {
@@ -174,6 +255,108 @@ const VoiceModule = forwardRef(({
       }
     }
   }, [isPlaying]);
+
+  const handleThematicInstruction = (instructionData) => {
+    // Clear any existing timer
+    if (thematicTimerRef.current) {
+      clearTimeout(thematicTimerRef.current);
+      clearInterval(thematicTimerRef.current);
+    }
+    
+    // Set the new thematic instruction
+    setThematicText(instructionData.text);
+    setThematicSection(instructionData.section);
+    setThematicType(instructionData.type);
+    
+    // Set duration for displaying the instruction
+    const duration = instructionData.duration || 30; // Default 30 seconds
+    setThematicTimer(duration);
+    
+    // Start countdown timer
+    const timerInterval = setInterval(() => {
+      setThematicTimer(prev => {
+        if (prev <= 1) {
+          clearInterval(timerInterval);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+      // Set timeout to clear the instruction after the duration
+      thematicTimerRef.current = setTimeout(() => {
+        setThematicText(null);
+        setThematicSection('');
+        setThematicType('');
+        setThematicTimer(0);
+        clearInterval(timerInterval);
+      }, duration * 1000);
+    };
+
+  const dismissCompletionScreen = () => {
+    setPerformanceComplete(false);
+  };
+
+  const handleMovementInstruction = (instructionData) => {
+    // Clear any existing timer
+    if (movementTimerRef.current) {
+      clearTimeout(movementTimerRef.current);
+      clearInterval(movementTimerRef.current);
+    }
+    
+    // Check if the instruction is in JSON format
+    let movementText = '';
+    let voiceShapeText = '';
+    let culturalDescription = '';
+    
+    if (typeof instructionData.instruction === 'object' && instructionData.instruction !== null) {
+      // Handle new JSON format
+      movementText = instructionData.instruction.movementInstruction || '';
+      voiceShapeText = instructionData.instruction.voiceShape || '';
+      culturalDescription = instructionData.instruction.culturalDescription || '';
+      
+      // Set the voice shape state
+      setVoiceShape(voiceShapeText);
+      
+      // Create a formatted instruction with the movement part first, then cultural description
+      let formattedInstruction = movementText;
+      if (culturalDescription) {
+        formattedInstruction += "\n\n" + culturalDescription;
+      }
+      
+      setMovementInstruction(formattedInstruction);
+    } else {
+      // Handle legacy string format
+      setMovementInstruction(instructionData.instruction);
+      setVoiceShape('');
+    }
+    
+    setMovementKeyword(instructionData.keyword || '');
+    
+    // Set duration for displaying the instruction
+    const duration = instructionData.duration || 10; // Default 10 seconds
+    setMovementTimer(duration);
+    
+    // Start countdown timer
+    const timerInterval = setInterval(() => {
+      setMovementTimer(prev => {
+        if (prev <= 1) {
+          clearInterval(timerInterval);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    
+    // Set timeout to clear the instruction after the duration
+    movementTimerRef.current = setTimeout(() => {
+      setMovementInstruction(null);
+      setVoiceShape('');
+      setMovementKeyword('');
+      setMovementTimer(0);
+      clearInterval(timerInterval);
+    }, duration * 1000);
+  };
 
   // NEW: Handle audio file messages
   const handleAudioFileMessage = (data) => {
@@ -1106,6 +1289,113 @@ const adjustVolumeForSolo = (soloVolume) => {
     );
   };
 
+  const renderThematicElement = () => {
+    if (!thematicText) return null;
+    
+    return (
+      <div className={`thematic-element-container ${thematicTimer <= 5 ? 'expiring' : ''}`}>
+        <div className="thematic-header">
+          <span className="thematic-title">{thematicSection} {thematicType}</span>
+          <span className="thematic-timer">{thematicTimer}s</span>
+        </div>
+        <div className="thematic-content">
+          <div className="thematic-text">{thematicText}</div>
+        </div>
+      </div>
+    );
+  };
+
+  const PerformanceCompleteScreen = () => {
+  return (
+    <div className="performance-complete-container">
+      <div className="performance-complete-icon">
+        <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+          <circle 
+            className="completion-circle" 
+            cx="50" cy="50" r="45" 
+            fill="none" stroke="#8FC7FF" 
+            strokeWidth="4" 
+          />
+          <path 
+            className="completion-check" 
+            d="M30,50 L45,65 L70,35" 
+            fill="none" stroke="#FFFFFF" 
+            strokeWidth="5" 
+            strokeLinecap="round" 
+            strokeLinejoin="round" 
+          />
+        </svg>
+      </div>
+      <div className="performance-complete-title typewriter">
+        Performance Complete
+      </div>
+      <div className="performance-complete-message">
+        Thank you for experiencing the Ashari cultural journey. 
+        The performance has concluded.
+      </div>
+      <button 
+        className="performance-complete-button"
+        onClick={dismissCompletionScreen}
+      >
+        Close
+      </button>
+    </div>
+  );
+};
+
+  const renderMovementInstruction = () => {
+    if (!movementInstruction) return null;
+    
+    // Check if the instruction contains both movement and cultural description
+    const parts = movementInstruction.split('\n\n');
+    const movementText = parts[0];
+    const culturalDescription = parts.length > 1 ? parts.slice(1).join('\n\n') : '';
+    
+    return (
+      <div className="movement-instruction-container">
+        <div className="movement-header">
+          <span className="movement-timer">{movementTimer}s</span>
+        </div>
+        <div className="movement-content">
+          <div className="movement-text">{movementText}</div>
+          
+          {/* Display the voice shape if it exists */}
+          {voiceShape && (
+            <div className="voice-shape" 
+                 style={{
+                   padding: '8px 12px',
+                   margin: '10px 0',
+                   backgroundColor: 'rgba(20, 80, 120, 0.3)',
+                   borderLeft: '3px solid #6ba5d7',
+                   borderRadius: '4px',
+                   fontStyle: 'italic'
+                 }}>
+              {voiceShape}
+            </div>
+          )}
+          
+          {culturalDescription && (
+            <div className="cultural-description" 
+                 style={{
+                   maxHeight: '120px', 
+                   overflowY: 'auto', 
+                   marginTop: '10px', 
+                   fontSize: '0.9em', 
+                   lineHeight: '1.4',
+                   backgroundColor: 'rgba(20, 30, 40, 0.3)',
+                   padding: '10px',
+                   borderRadius: '6px'
+                 }}>
+              {culturalDescription}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
+
+
   // Playback indicator component
   const AudioPlaybackIndicator = ({ currentAudio, isPlaying, audioElementRef }) => {
     const [progress, setProgress] = useState(0);
@@ -1195,11 +1485,16 @@ const adjustVolumeForSolo = (soloVolume) => {
   };
 
   const rangeLabel = getRangeLabel(voiceType);
-  
+
+  if (performanceComplete) {
+    return <PerformanceCompleteScreen />;
+  }
+
   return (
     <>
       <div className={`drone-choir-container ${isSelected ? 'selected' : ''} ${isSingleMode ? 'single-mode' : ''}`} >
-        
+        {renderThematicElement()}
+        {renderMovementInstruction()}
         {isSingleMode && (
           <div className="enable-audio-container">
             <button 
@@ -1251,32 +1546,6 @@ const adjustVolumeForSolo = (soloVolume) => {
               </div>
             </div>
           )}
-        </div>
-
-        {/* Audio File Status - NEW */}
-        {isAudioFilePlaying && renderAudioFileStatus()}
-        
-        {/* Queue display - conditionally show less detail in single mode */}
-        <div className="queue-display">
-          <h2 className="section-title">Note Queue ({audioQueue.length})</h2>
-          <div className="queue-items">
-            {audioQueue.length === 0 ? (
-              <div className="empty-queue">Queue is empty</div>
-            ) : (
-              audioQueue.slice(0, isSingleMode ? 3 : 5).map((queueItem, index) => (
-                <div key={index} className="queue-item">
-                  <span className="queue-note">{queueItem.note}</span>
-                  <span className="queue-freq">{queueItem.frequency.toFixed(1)} Hz</span>
-                  <span className="queue-duration">{queueItem.duration.toFixed(1)}s</span>
-                </div>
-              ))
-            )}
-            {audioQueue.length > (isSingleMode ? 3 : 5) && (
-              <div className="queue-more">
-                +{audioQueue.length - (isSingleMode ? 3 : 5)} more notes in queue
-              </div>
-            )}
-          </div>
         </div>
         
         {/* Visualization area - enhanced for single mode */}

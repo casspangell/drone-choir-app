@@ -115,6 +115,29 @@ app.post('/api/drone-update', (req, res) => {
   });
 });
 
+// ENDPOINT to receive movement from Python
+app.post('/api/movement-update', (req, res) => {
+  const data = req.body;
+  console.log('Received movement update data:', JSON.stringify(data, null, 2));
+  
+  // Broadcast to all connected clients
+  io.emit('movement-instruction-received', {
+    timestamp: new Date().toISOString(),
+    source: 'python-api',
+    data: {
+      voice_type: data.voice_type || 'all', // Target voice or 'all'
+      instruction: data.instruction,
+      keyword: data.keyword || '',
+      duration: data.duration || 10 // How long to display the instruction (seconds)
+    }
+  });
+  
+  res.status(200).json({ 
+    status: 'success', 
+    message: 'Movement instruction received and broadcast to clients' 
+  });
+});
+
 // ENDPOINT to receive queue updates from Python
 app.post('/api/queue-update', (req, res) => {
   const data = req.body;
@@ -131,6 +154,29 @@ app.post('/api/queue-update', (req, res) => {
   res.status(200).json({ 
     status: 'success', 
     message: 'Queue data received and broadcast to clients' 
+  });
+});
+
+// ENDPOINT to receive thematic instructions from Python
+app.post('/api/thematic-update', (req, res) => {
+  const data = req.body;
+  console.log('Received thematic update data:', JSON.stringify(data, null, 2));
+  
+  // Broadcast to all connected clients
+  io.emit('thematic-instruction-received', {
+    timestamp: new Date().toISOString(),
+    source: 'python-api',
+    data: {
+      section: data.section || '',
+      type: data.type || '',
+      text: data.text || '',
+      duration: data.duration || 30 // Default to 30 seconds
+    }
+  });
+  
+  res.status(200).json({ 
+    status: 'success', 
+    message: 'Thematic instruction received and broadcast to clients' 
   });
 });
 
